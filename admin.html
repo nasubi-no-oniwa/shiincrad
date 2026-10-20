@@ -33,12 +33,12 @@
 <div class="row"><span>管理のかぎ</span><input id="key" type="password" autocomplete="off" size="24"><button id="reload">読みなおす</button></div>
 <div class="row"><span>層を直接しらべる</span><input id="fno" type="number" min="1" max="100" value="1" style="width:80px"><button id="look">しらべる</button></div>
 <div id="list"><p>読みこみ中…</p></div>
-<script src="js/firebase-config.js?v=1"></script>
-<script src="js/engine.js?v=1"></script>
-<script src="js/bosses.js?v=1"></script>
-<script src="js/reach.js?v=1"></script>
-<script src="js/render.js?v=1"></script>
-<script src="js/net.js?v=1"></script>
+<script src="js/firebase-config.js?v=2"></script>
+<script src="js/engine.js?v=2"></script>
+<script src="js/bosses.js?v=2"></script>
+<script src="js/reach.js?v=2"></script>
+<script src="js/render.js?v=2"></script>
+<script src="js/net.js?v=2"></script>
 <script>
 (function () {
   const SH = window.SH, NET = SH.NET, T = SH.T, $ = id => document.getElementById(id);
@@ -56,8 +56,8 @@
     let rep = {}, stat = {}, open = {};
     try { [rep, stat, open] = await Promise.all([NET.reports(), NET.rest('sh_stat').then(v => v || {}), NET.rest('sh_open').then(v => v || {})]); }
     catch (e) { box.innerHTML = '<p class="bad">読みこめませんでした</p>'; return; }
-    const floors = Object.keys(rep).map(Number).sort((a, b) => a - b);
-    let latest = 1; for (const k in open) latest = Math.max(latest, Math.min(100, +k + 1));
+    const floors = Object.keys(rep || {}).filter(k => rep[k]).map(Number).sort((a, b) => a - b);
+    let latest = 1; for (const k in open) if (open[k]) latest = Math.max(latest, Math.min(100, +k + 1));
     box.innerHTML = `<p>いまの最新の層：<b>第${latest}層</b>　知らせのある層：${floors.length ? floors.map(f => '第' + f + '層').join('、') : 'なし'}</p>`;
     for (const f of floors) box.appendChild(card(f, rep[f], stat[f] || {}, f === latest));
   }
@@ -110,7 +110,7 @@
       const key = $('key').value.trim(); if (!key) { alert('管理のかぎを入れてください'); return; }
       if (!confirm(`第${f}層の屍（${cor.size}か所・${total}人）をぜんぶ消します。もとにもどせません。よろしいですか？`)) return;
       try { await NET.resetFloor(f, key); out.insertAdjacentHTML('beforeend', '<p class="ok">消しました。</p>'); setTimeout(load, 800); }
-      catch (e) { out.insertAdjacentHTML('beforeend', '<p class="bad">消せませんでした（かぎがちがうか、通信できません）</p>'); }
+      catch (e) { const m = String(e && e.message || e); out.insertAdjacentHTML('beforeend', '<p class="bad">消せませんでした（' + (/40[13]/.test(m) || /PERMISSION/i.test(String(e && e.code)) ? 'データベースに断られました。かぎがちがうか、かぎが入っていません' : '通信できませんでした') + '）<br><small>' + esc(m) + '</small></p>'); }
     };
     row.append(cp, del); out.appendChild(row);
   }

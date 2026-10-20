@@ -166,7 +166,9 @@
   // =============================================
   N.overview = async function () {
     const [open, stat] = await Promise.all([rest('sh_open').catch(() => null), rest('sh_stat').catch(() => null)]);
-    return { open: open || {}, stat: stat || {} };
+    // 番号のキーは配列で返ってくることがある（先頭が null）。ふつうの入れものになおす
+    const obj = v => { const o = {}; if (v && typeof v === 'object') for (const k in v) if (v[k] && typeof v[k] === 'object') o[k] = v[k]; return o; };
+    return { open: obj(open), stat: obj(stat) };
   };
   N.grave = async function (n) { const v = await rest('sh_grave', { orderBy: 't', limitToLast: n || 100 }); return Object.values(v || {}).filter(g => g && g.n).sort((a, b) => b.t - a.t); };
   // 詰みの知らせ
