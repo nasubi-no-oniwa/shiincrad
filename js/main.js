@@ -11,13 +11,14 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '6';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '7';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
   const newName = () => { const p = PRE[Math.floor(Math.random() * PRE.length)], n = NAME[Math.floor(Math.random() * NAME.length)]; return (p + n).slice(0, 12); };
   // ---------- 自分の記録（この端末） ----------
   const ME = Object.assign({ dead: 0, clears: {}, best: {}, seen: {}, fake: {}, tut: 0 }, NET.store('shiin_me') || {});
+  if (!ME.fv || ME.fv < 2) { ME.fake = {}; ME.okOpen = {}; ME.fv = 2; }   // 確かめ方を変えたので、前の判断はやりなおす
   const saveMe = () => NET.store('shiin_me', ME);
   // ---------- 層を読む（20層ずつ） ----------
   const chunks = {}; let INDEX = null;
@@ -28,10 +29,16 @@
     if (!chunks[ci]) chunks[ci] = fetch('levels/l' + ci + '.json?v=' + SH.VER).then(r => r.json());
     const recs = await chunks[ci], r = recs.find(x => x.f === f); if (!r) throw new Error('層がありません');
     if (r._lv) return r._lv;
-    const H = 16;
-    return r._lv = { f, name: r.n, theme: Math.ceil(f / 5) - 1, w: r.w, h: H, tiles: rleDecode(r.t, r.w * H), cap: Int8Array.from(r.c.split('').map(Number)), ents: r.e, goal: r.g, boss: r.b, q: r.q, dark: r.dk, cave: r.cv, need: r.need, start: { x: 2.1, y: GY - PH } };
+    return r._lv = decodeRec(r);
+  }
+  function decodeRec(r) {
+    const H = 16, f = r.f;
+    return { f, name: r.n, theme: Math.ceil(f / 5) - 1, w: r.w, h: H, tiles: rleDecode(r.t, r.w * H), cap: Int8Array.from(r.c.split('').map(Number)), ents: r.e, goal: r.g, boss: r.b, q: r.q, dark: r.dk, cave: r.cv, need: r.need, start: { x: 2.1, y: GY - PH } };
   }
   SH.getLevel = getLevel;
+  // 直す前の版（越えた記録を確かめるときに使う）
+  let HIST = null;
+  async function getVariants(f) { try { if (!HIST) HIST = fetch('levels/hist.json?v=' + SH.VER).then(r => r.ok ? r.json() : {}); const h = await HIST; return (h[f] || []).map(decodeRec); } catch (e) { return []; } }
   // ---------- 全体の状態 ----------
   const W = { open: {}, stat: {}, latest: 1, loaded: false };
   function computeLatest() {
@@ -46,7 +53,7 @@
     const o = W.open[g]; if (!o) return;
     ME.okOpen = ME.okOpen || {}; if (ME.okOpen[g] === o.id) return;   // 一度確かめた記録は読みなおさない（通信を減らす）
     try {
-      const lv2 = await getLevel(g), cells = await NET.loadCells(lv2), c = await NET.firstClear(lv2, cells);
+      const lv2 = await getLevel(g), cells = await NET.loadCells(lv2), c = await NET.firstClear(lv2, cells, await getVariants(g));
       if (c) { ME.okOpen[g] = o.id; saveMe(); }
       if (!c && W.open[g]) { ME.fake[g] = W.open[g].id; saveMe(); computeLatest(); if (S.lv && S.lv.f === g + 1) { toast('この層は、まだ開いていませんでした', '越えた記録を確かめられませんでした', 2600); setTimeout(toTitle, 1500); } }
     } catch (e) { }
@@ -140,12 +147,12 @@
     if (!ME.tut) { ME.tut = 1; saveMe(); openHow(); }
   }
   async function loadFirst(play) {
-    try { const c = await NET.firstClear(S.lv, S.cor); S.first = c; if (c && play) startReplay(c); }
+    try { const c = await NET.firstClear(S.lv, S.cor, await getVariants(S.lv.f)); S.first = c; if (c && play) startReplay(c); }
     catch (e) { }
   }
   function startReplay(c) {
     const snap = NET.corParse(c.c, S.lv.w);
-    S.replay = { run: new SH.Run(S.lv, snap), inp: SH.Rec.parse(c.r), name: c.n, x: c.x };
+    S.replay = { run: new SH.Run(c._lv || S.lv, snap), inp: SH.Rec.parse(c.r), name: c.n, x: c.x };
     toast(`はじめて越えた「${c.n}」の走り`, '屍は「そのときの屍」です', 2200);
   }
   function spawn(first) {

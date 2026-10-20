@@ -171,10 +171,16 @@
     return r.ok;
   };
   // その層の、はじめて越えた本当の人（いちばん早い記録から順に確かめる）
-  N.firstClear = async function (lv, cells) {
+  N.firstClear = async function (lv, cells, variants) {
     const [v, rs] = await Promise.all([rest('sh_clear/' + lv.f, { orderBy: 't', limitToFirst: 3 }).catch(() => rest('sh_clear/' + lv.f)), rest('sh_reset/' + lv.f + '/t').catch(() => null)]);
     const list = Object.entries(v || {}).map(([id, c]) => Object.assign({ id }, c)).sort((a, b) => a.t - b.t);
-    for (const c of list) if (N.verifyClear(lv, c, cells, rs)) return c;
+    for (const c of list) if (N.verifyClear(lv, c, cells, rs)) { c._lv = lv; return c; }
+    // 層を直したことがあるときは、昔の版でも確かめる（越えた人が遊んだ版で計算しなおす）
+    for (const old of (variants || [])) {
+      const raw = lv._raw; if (!raw) break;
+      const cells2 = N.sanitize(old, raw);
+      for (const c of list) if (N.verifyClear(old, c, cells2, rs)) { c._lv = old; return c; }
+    }
     return null;
   };
   // =============================================
