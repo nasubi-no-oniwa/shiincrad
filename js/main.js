@@ -140,7 +140,7 @@
     $('game').classList.toggle('watching', S.watch);
     updateHud();
     SND.bgm(lv.theme);
-    if (S.watch) { S.run = new SH.Run(lv, cor); S.run.over = true; S.cam = 0; view.follow(0, 8, true); loadFirst(true); return; }
+    if (S.watch) { S.run = new SH.Run(lv, cor); S.run.hazard = () => null; S.cam = 0; view.follow(0, 8, true); loadFirst(true); return; }   // 見るときも仕掛けは動かす（自分は描かない・死なない）
     if (f === 1) $('stone').style.display = ''; else $('stone').style.display = 'none';
     if (S.latest && f > 1) verifyOpen(f - 1);
     spawn(true);
@@ -183,7 +183,7 @@
     const run = S.run;
     while (S.acc >= SH.DT) {
       S.acc -= SH.DT;
-      if (S.watch) { stepReplay(); continue; }
+      if (S.watch) { if (run && !run.over) { run.step(0); run.events.length = 0; } stepReplay(); continue; }
       if (run && !run.over) {
         const b = S.auto ? S.auto(run.t + 1) : (S.keys.l ? 1 : 0) | (S.keys.r ? 2 : 0) | (S.keys.j ? 4 : 0);   // auto はテスト用
         S.rec.put(run.t + 1, b);
@@ -199,7 +199,9 @@
       S.cam = Math.max(0, Math.min(S.lv.w - view.vw, S.cam)); view.camX = S.cam; view.camY = view.fitY(8);
     } else if (run && !run.dead) view.follow(run.p.x, run.p.y);
     S.ghost = S.replay && !S.replay.run.over ? { x: S.replay.run.p.x, y: S.replay.run.p.y, name: S.replay.name, face: S.replay.run.p.face } : null;
-    view.draw({ run, cor: S.cor, name: S.name, since: S.since, pick: S.pick, ghost: S.ghost, showPlayer: !S.watch });
+    // 見るモードで「越えた人の走り」を流している間は、その走りの仕掛け（同じ時刻の動き）を描く
+    const R = S.replay, showRun = S.watch && R && !R.run.over ? R.run : run, showCor = showRun === run ? S.cor : R.run.cor;
+    view.draw({ run: showRun, cor: showCor, name: S.name, since: S.since, pick: S.pick, ghost: S.ghost, showPlayer: !S.watch });
     if (run && !S.watch && !run.over) { $('h-time').textContent = (run.t / 120).toFixed(1) + '秒'; if (run.p.maxX > S.best) { S.best = run.p.maxX; updateHud(); } }
     // 番人の曲
     if (run && !S.watch) { const bs = run.ents.find(e => e.k === 'boss'); const want = bs && bs.st.on !== undefined && !run.over ? (S.lv.q ? 'gate' : 'boss') : S.lv.theme; if (SND.cur !== want) SND.bgm(want); }
