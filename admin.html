@@ -31,7 +31,7 @@
 <h1>シインクラッド 管理</h1>
 <p class="dim">「詰んだ？」の知らせと、各層の様子。消すときは、Firebaseの画面で入れた<b>管理のかぎ</b>が必要です（この画面にだけ入れます。どこにも保存しません）。</p>
 <div class="row"><span>管理のかぎ</span><input id="key" type="password" autocomplete="off" size="24"><button id="reload">読みなおす</button></div>
-<div class="row"><span>層を直接しらべる</span><input id="fno" type="number" min="1" max="100" value="1" style="width:80px"><button id="look">しらべる</button></div>
+<div class="row"><span>層を直接しらべる</span><input id="fno" type="number" min="1" max="100" value="1" style="width:80px"><button id="look">しらべる</button><button id="spec">スペクターで見る</button></div>
 <div id="list"><p>読みこみ中…</p></div>
 <script src="js/firebase-config.js?v=2"></script>
 <script src="js/engine.js?v=2"></script>
@@ -112,9 +112,11 @@
       try { await NET.resetFloor(f, key); out.insertAdjacentHTML('beforeend', '<p class="ok">消しました。</p>'); setTimeout(load, 800); }
       catch (e) { const m = String(e && e.message || e); out.insertAdjacentHTML('beforeend', '<p class="bad">消せませんでした（' + (/40[13]/.test(m) || /PERMISSION/i.test(String(e && e.code)) ? 'データベースに断られました。かぎがちがうか、かぎが入っていません' : '通信できませんでした') + '）<br><small>' + esc(m) + '</small></p>'); }
     };
-    row.append(cp, del); out.appendChild(row);
+    const sp = document.createElement('button'); sp.textContent = 'スペクターで見る'; sp.onclick = () => window.open('./?watch=' + f, '_blank');
+    row.append(sp, cp, del); out.appendChild(row);
   }
   $('reload').onclick = load;
+  $('spec').onclick = () => { const f = Math.max(1, Math.min(100, +$('fno').value || 1)); window.open('./?watch=' + f, '_blank'); };
   $('look').onclick = () => { const f = Math.max(1, Math.min(100, +$('fno').value || 1)); const el = card(f, {}, {}, false); $('list').prepend(el); el.querySelector('.look').click(); };
   load();
 })();

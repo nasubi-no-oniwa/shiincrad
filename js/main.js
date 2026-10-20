@@ -417,7 +417,12 @@
   $('g-how').onclick = () => openHow();
   // はじめる
   paintSnd();
-  getIndex().then(() => title.paint()).catch(() => { });
+  getIndex().then(() => {
+    title.paint();
+    // 管理画面から：?watch=層 で、その層をスペクターモードで開く（開いていない層も見られる）
+    const wf = +(new URLSearchParams(location.search).get('watch') || 0);
+    if (wf >= 1 && wf <= 100) { ME.tut = 1; startFloor(wf, { watch: true }); }
+  }).catch(() => { });
   refresh();
   NET.warm();
   requestAnimationFrame(loop);
