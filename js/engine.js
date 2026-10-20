@@ -200,7 +200,7 @@
           }
           case 'crush': {  // 落ちてくる天井：上で待つ→落ちる→下で待つ→上がる。屍があるとその上で止まる
             // jam：下の列がすべて屍で埋まる（上限まで積もる）と、屍がはさまって天井が止まる（第16層から）
-            if (e.jam) { let full = true, any = false; for (let x = Math.floor(e.x); x < Math.ceil(e.x + e.w - 0.01); x++) { if (this.cap[x] > 0) { any = true; if (this.col[x] < this.cap[x]) full = false; } } if (any && full) { e.jammed = true; e.y = e.y0; e.falling = false; e.warn = false; break; } }
+            if (e.jam) { const jx = e.hx !== undefined ? e.hx : e.x; let full = true, any = false; for (let x = Math.floor(jx); x < Math.ceil(jx + e.w - 0.01); x++) { if (this.cap[x] > 0) { any = true; if (this.col[x] < this.cap[x]) full = false; } } if (any && full) { e.jammed = true; e.x = jx; e.y = e.y0; e.falling = false; e.warn = false; break; } }
             const per = e.per, f = ((t + (e.off || 0)) % per) / per;
             let bot = e.y0 + e.h; { // 下の限界：その下でいちばん上の固いもの
               let lim = this.H; for (let x = Math.floor(e.x); x < Math.ceil(e.x + e.w - 0.01); x++) { for (let y = Math.floor(e.y0 + e.h); y < this.H; y++) if (this.solid(x, y)) { lim = Math.min(lim, y); break; } }
@@ -208,11 +208,21 @@
             }
             const fall = bot - e.h - e.y0; let y;
             if (e.v2) {
-              // 第21層から：上で長く待つ（60%）→ 落ちる → 下で少し待つ → すばやく上がる（上がる間は当たらない）
-              //  落ちる0.5秒前から知らせる
-              if (f < 0.6) y = e.y0; else if (f < 0.68) y = e.y0 + fall * ((f - 0.6) / 0.08); else if (f < 0.8) y = e.y0 + fall; else if (f < 0.9) y = e.y0 + fall * (1 - (f - 0.8) / 0.1); else y = e.y0;
-              e.falling = f >= 0.6 && f < 0.68; e.kill = f >= 0.6 && f < 0.8; e.warn = f >= 0.6 - 60 / per && f < 0.6; e.y = y;
-              if (f >= 0.68 && f < 0.69 && !e.st.boom) { e.st.boom = 1; this.ev('crush', e.x); } if (f < 0.6) e.st.boom = 0;
+              // 第21層から：上で長く待つ → 落ちる → 下で少し待つ → すばやく上がる（上がる間は当たらない）。落ちる前に知らせる
+              //  第28層から：up（上で待つ割合）と wt（知らせの長さ）が層ごとに短くなる
+              //  fe：フェイント（知らせの前に途中まで下りて戻る）　tr：追いかけ（知らせのときのプレイヤーの上へ動く）
+              const up = e.up || 0.6, a1 = up + 0.08, a2 = a1 + 0.12, a3 = a2 + 0.1, wt = (e.wt || 60) / per;
+              if (f < up) y = e.y0; else if (f < a1) y = e.y0 + fall * ((f - up) / 0.08); else if (f < a2) y = e.y0 + fall; else if (f < a3) y = e.y0 + fall * (1 - (f - a2) / 0.1); else y = e.y0;
+              if (e.fe && f >= up - wt - 0.16 && f < up - wt - 0.02) { const q = (f - (up - wt - 0.16)) / 0.14; y = e.y0 + fall * 0.4 * (q < 0.5 ? q * 2 : 2 - q * 2); }
+              e.falling = f >= up && f < a1; e.kill = f >= up && f < a2; e.warn = f >= up - wt && f < up; e.y = y;
+              if (e.tr) {
+                const hx = e.hx !== undefined ? e.hx : (e.hx = e.x);
+                if (e.warn && e.st.tx === undefined) { const px = this.p.x + PW / 2 - e.w / 2; e.st.tx = Math.max(hx - e.tr, Math.min(hx + e.tr, px)); }
+                if (f >= a3 || f < up - wt) e.st.tx = undefined;
+                const tx = e.st.tx === undefined ? hx : e.st.tx, dx = tx - e.x, sp = 8 * DT;
+                e.x += Math.abs(dx) <= sp ? dx : Math.sign(dx) * sp;
+              }
+              if (f >= a1 && f < a1 + 0.01 && !e.st.boom) { e.st.boom = 1; this.ev('crush', e.x); } if (f < up) e.st.boom = 0;
             } else {
               if (f < 0.45) y = e.y0; else if (f < 0.55) y = e.y0 + fall * ((f - 0.45) / 0.1); else if (f < 0.7) y = e.y0 + fall; else y = e.y0 + fall * (1 - (f - 0.7) / 0.3);
               e.falling = f >= 0.45 && f < 0.7; e.warn = f >= 0.32 && f < 0.45; e.y = y;

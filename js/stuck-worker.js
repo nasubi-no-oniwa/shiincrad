@@ -1,5 +1,5 @@
 // 詰みのチェックを、遊びの手を止めずに別の所で計算する
-importScripts('engine.js?v=10', 'bosses.js?v=10', 'reach.js?v=10');
+importScripts('engine.js?v=11', 'bosses.js?v=11', 'reach.js?v=11');
 onmessage = function (ev) {
   const { id, lv, cor } = ev.data;
   try {

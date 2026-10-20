@@ -21,7 +21,7 @@
     // 敵などが屍を作る場所（候補）
     const killers = [];
     for (const e of lv.ents) {
-      if (e.k === 'crush') killers.push([Math.floor(e.x), Math.ceil(e.x + e.w) - 1]);
+      if (e.k === 'crush') killers.push([Math.floor(e.x - (e.tr || 0)), Math.ceil(e.x + e.w + (e.tr || 0)) - 1]);
       else if (e.k === 'walk') killers.push([Math.floor(e.a), Math.floor(e.b)]);
       else if (e.k === 'bolt') killers.push([Math.floor(e.x), Math.floor(e.x)]);
       else if (e.k === 'boss') killers.push([Math.floor(e.ax), Math.floor(e.bx) - 1]);
