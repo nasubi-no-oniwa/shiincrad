@@ -194,9 +194,17 @@
               bot = lim;
             }
             const fall = bot - e.h - e.y0; let y;
-            if (f < 0.45) y = e.y0; else if (f < 0.55) y = e.y0 + fall * ((f - 0.45) / 0.1); else if (f < 0.7) y = e.y0 + fall; else y = e.y0 + fall * (1 - (f - 0.7) / 0.3);
-            e.falling = f >= 0.45 && f < 0.7; e.warn = f >= 0.32 && f < 0.45; e.y = y;
-            if (f >= 0.55 && f < 0.56 && !e.st.boom) { e.st.boom = 1; this.ev('crush', e.x); } if (f < 0.5) e.st.boom = 0;
+            if (e.v2) {
+              // 第21層から：上で長く待つ（60%）→ 落ちる → 下で少し待つ → すばやく上がる（上がる間は当たらない）
+              //  落ちる0.5秒前から知らせる
+              if (f < 0.6) y = e.y0; else if (f < 0.68) y = e.y0 + fall * ((f - 0.6) / 0.08); else if (f < 0.8) y = e.y0 + fall; else if (f < 0.9) y = e.y0 + fall * (1 - (f - 0.8) / 0.1); else y = e.y0;
+              e.falling = f >= 0.6 && f < 0.68; e.kill = f >= 0.6 && f < 0.8; e.warn = f >= 0.6 - 60 / per && f < 0.6; e.y = y;
+              if (f >= 0.68 && f < 0.69 && !e.st.boom) { e.st.boom = 1; this.ev('crush', e.x); } if (f < 0.6) e.st.boom = 0;
+            } else {
+              if (f < 0.45) y = e.y0; else if (f < 0.55) y = e.y0 + fall * ((f - 0.45) / 0.1); else if (f < 0.7) y = e.y0 + fall; else y = e.y0 + fall * (1 - (f - 0.7) / 0.3);
+              e.falling = f >= 0.45 && f < 0.7; e.warn = f >= 0.32 && f < 0.45; e.y = y;
+              if (f >= 0.55 && f < 0.56 && !e.st.boom) { e.st.boom = 1; this.ev('crush', e.x); } if (f < 0.5) e.st.boom = 0;
+            }
             break;
           }
           case 'saw': { const a = t / e.per + (e.off || 0); e.x = e.cx + dcos(a) * e.r; e.y = e.cy + dsin(a) * e.r; break; }
@@ -249,7 +257,7 @@
     }
     entHit(e) {
       switch (e.k) {
-        case 'crush': return (e.falling || e.y > e.y0 + 0.05) && this.hitRect(e.x, e.y, e.w, e.h, 0.12) ? 'crush' : null;
+        case 'crush': if (e.jammed) return null; return (e.v2 ? e.kill : (e.falling || e.y > e.y0 + 0.05)) && this.hitRect(e.x, e.y, e.w, e.h, 0.12) ? 'crush' : null;
         case 'saw': { const p = this.p, dx = p.x + PW / 2 - e.x, dy = p.y + PH / 2 - e.y, r = (e.rad || 0.5) + 0.3; return dx * dx + dy * dy < r * r ? 'saw' : null; }
         case 'jet': if (!e.on) return null; return this.hitRect(e.x, e.dir < 0 ? e.y - e.len + 1 : e.y, 1, e.len, 0.15) ? 'fire' : null;
         case 'bolt': return e.on && this.hitRect(Math.floor(e.x), 0, 1, e.yb, 0.1) ? 'bolt' : null;
