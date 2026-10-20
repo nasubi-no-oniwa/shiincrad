@@ -3,67 +3,155 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>シインクラッド（試作・第1層）</title>
+<title>シインクラッド</title>
+<meta name="description" content="死ぬと、そこが足場になる。みんなの屍を越えて、全100層の頂をめざす横スクロール。">
 <meta name="theme-color" content="#14121c">
+<meta property="og:type" content="website">
+<meta property="og:title" content="シインクラッド">
+<meta property="og:description" content="死ぬと、そこが足場になる。みんなの屍を越えて、全100層の頂をめざせ。">
+<meta property="og:url" content="https://nasubi-no-oniwa.github.io/shiincrad/">
+<meta property="og:image" content="https://nasubi-no-oniwa.github.io/shiincrad/icons/ogp.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
-<style>
-  :root { --bg: #14121c; --ink: #f2e9d8; --gold: #ffd25a; --red: #e0503a; }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: 'DotGothic16', monospace; -webkit-user-select: none; user-select: none; touch-action: none; }
-  canvas { position: fixed; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
-  .hud { position: fixed; left: 0; right: 0; top: 0; display: flex; gap: 10px; align-items: center; padding: max(8px, env(safe-area-inset-top)) 12px 6px; pointer-events: none; font-size: 15px; text-shadow: 0 2px 0 #000; }
-  .hud b { color: var(--gold); font-weight: 400; }
-  .hud .fl { font-size: 18px; }
-  .hud .sp { flex: 1; }
-  .prog { position: fixed; left: 12px; right: 12px; top: calc(max(8px, env(safe-area-inset-top)) + 28px); height: 6px; background: rgba(255,255,255,.12); pointer-events: none; }
-  .prog i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--gold); }
-  .prog u { position: absolute; top: -3px; width: 3px; height: 12px; background: #fff; }
-  .name { position: fixed; left: 50%; top: calc(max(8px, env(safe-area-inset-top)) + 42px); transform: translateX(-50%); font-size: 14px; color: #cfc6b8; text-shadow: 0 2px 0 #000; pointer-events: none; white-space: nowrap; }
-  .btns { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; padding: 0 max(14px, env(safe-area-inset-left)) max(14px, env(safe-area-inset-bottom)); pointer-events: none; }
-  .btns div { display: flex; gap: 12px; }
-  .b { pointer-events: auto; width: 72px; height: 72px; border-radius: 16px; border: 2px solid rgba(255,255,255,.35); background: rgba(255,255,255,.1); color: #fff; font: inherit; font-size: 26px; display: flex; align-items: center; justify-content: center; }
-  .b.on { background: rgba(255,210,90,.35); }
-  .b.j { width: 92px; height: 92px; border-radius: 50%; font-size: 26px; flex-direction: column; line-height: 1; }
-  .b.j small { font-size: 12px; margin-top: 4px; }
-  @media (hover: hover) and (pointer: fine) { .btns { display: none; } }
-  .pop { position: fixed; padding: 6px 10px; background: rgba(10,8,14,.92); border: 2px solid #6a6176; font-size: 14px; line-height: 1.5; pointer-events: none; white-space: nowrap; transform: translate(-50%, -110%); display: none; }
-  .pop b { color: var(--gold); font-weight: 400; }
-  .msg { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(10,8,14,.78); z-index: 5; }
-  .msg.hide { display: none; }
-  .card { width: min(440px, calc(100% - 32px)); background: #1f1b2a; border: 3px solid #6a6176; padding: 20px 18px; text-align: center; box-shadow: 0 0 0 4px #0c0a10; }
-  .card h1 { margin: 0 0 4px; font-size: 34px; font-weight: 400; color: var(--gold); letter-spacing: .1em; text-shadow: 0 3px 0 #000; }
-  .card h2 { margin: 0 0 12px; font-size: 16px; font-weight: 400; color: #cfc6b8; }
-  .card p { margin: 8px 0; font-size: 15px; line-height: 1.7; text-align: left; }
-  .card p b { color: var(--gold); font-weight: 400; }
-  .card .k { color: #9fd0ff; }
-  .go { margin-top: 12px; font: inherit; font-size: 20px; padding: 10px 28px; background: var(--red); color: #fff; border: 0; box-shadow: 0 4px 0 #7a2216; cursor: pointer; }
-  .sub { margin-top: 10px; font: inherit; font-size: 13px; padding: 6px 12px; background: transparent; color: #9a90a8; border: 1px solid #4a4356; cursor: pointer; }
-  .toast { position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%); font-size: 30px; color: #fff; text-shadow: 0 3px 0 #000, 0 0 12px rgba(0,0,0,.8); pointer-events: none; opacity: 0; transition: opacity .2s; text-align: center; white-space: nowrap; }
-  .toast small { display: block; font-size: 16px; color: #cfc6b8; margin-top: 6px; }
-  .toast.in { opacity: 1; }
-</style>
+<link rel="stylesheet" href="css/style.css?v=1">
 </head>
 <body>
 <canvas id="cv"></canvas>
-<div class="hud"><span class="fl">第<b>1</b>層</span><span>屍 <b id="h-dead">0</b></span><span class="sp"></span><span id="h-time">0.0秒</span></div>
-<div class="prog"><i id="h-prog"></i><u id="h-best"></u></div>
-<div class="name" id="h-name"></div>
-<div class="btns"><div><button class="b" id="bl">◀</button><button class="b" id="br">▶</button></div><div><button class="b j" id="bj">▲<small>ジャンプ</small></button></div></div>
+
+<!-- ========== タイトル ========== -->
+<section class="screen on" id="title">
+  <div class="tbg"></div>
+  <div class="ticker" id="ticker"><span>読みこみ中…</span></div>
+  <div class="tmain">
+    <h1>シインクラッド</h1>
+    <p class="catch">死ぬと、そこが足場になる。</p>
+    <div class="now">
+      <div class="lab">いま、みんなで挑んでいる層</div>
+      <div class="lv" id="t-latest">第<b>1</b>層</div>
+      <div class="nums"><span>この層の屍 <b id="t-ldead">0</b></span><span>道ができた <b id="t-road">0%</b></span></div>
+    </div>
+    <button class="go" id="go-latest">第1層に挑む</button>
+    <div class="row">
+      <button class="sub" id="go-select">層をえらぶ</button>
+      <button class="sub" id="go-grave">屍の碑</button>
+      <button class="sub" id="go-hero">到達者の碑</button>
+    </div>
+    <div class="row">
+      <button class="sub" id="go-how">あそびかた</button>
+      <button class="sub" id="b-snd">♪ 音あり</button>
+      <button class="sub" id="b-share">投稿する</button>
+    </div>
+    <p class="total">これまでの屍　<b id="t-total">0</b></p>
+    <a class="home" href="https://nasubi-no-oniwa.github.io/">なすびのお庭</a>
+  </div>
+</section>
+
+<!-- ========== 層をえらぶ ========== -->
+<section class="screen" id="select">
+  <header><button class="sub" id="sel-back">◀ もどる</button><h2>層をえらぶ</h2></header>
+  <p class="note">開いた層だけ入れます。前の層は「練習」、越えられた層は「見る」で道をながめられます。</p>
+  <div class="sel-list" id="sel-list"></div>
+</section>
+
+<!-- ========== 遊ぶ ========== -->
+<section class="screen" id="game">
+  <div class="hud">
+    <button class="hb" id="g-back">◀</button>
+    <span class="hfl">第<b id="h-floor">1</b>層 <small id="h-fname"></small> <em id="h-mode"></em></span>
+    <span class="sp"></span>
+    <span>屍 <b id="h-dead">0</b></span>
+    <span id="h-time">0.0秒</span>
+    <button class="hb" id="g-how">？</button>
+    <button class="hb" id="g-snd">♪</button>
+  </div>
+  <div class="prog"><i id="h-prog"></i><u id="h-best"></u></div>
+  <div class="name" id="h-name"></div>
+  <button class="stuck" id="b-stuck">詰んだ？</button>
+  <button class="stone" id="stone" style="display:none">屍の碑</button>
+  <div class="watchbar"><button class="sub" id="w-replay">はじめて越えた人の走り</button><button class="sub" id="w-free">自由に見る</button><small>← → か、ドラッグで動かせます</small></div>
+  <div class="btns"><div><button class="b" id="bl">◀</button><button class="b" id="br">▶</button></div><div><button class="b j" id="bj">▲<small>ジャンプ</small></button></div></div>
+  <div class="loading" id="loading">屍を数えています…</div>
+</section>
+
 <div class="pop" id="pop"></div>
 <div class="toast" id="toast"></div>
-<div class="msg" id="msg"><div class="card">
-  <h1>シインクラッド</h1>
-  <h2>試作版・第1層（この端末だけ）</h2>
-  <p>あなたは名もなきキューブ。挑むたびに<b>ちがう名前</b>になる。</p>
-  <p>死ぬと、その場所に<b>屍</b>が残って<b>足場</b>になる。穴に落ちれば底に積もり、トゲの上ならトゲをふさぐ。</p>
-  <p>敵は低い屍は越えてくるが、<b>高い屍は越えられない</b>。屍の列には<b>積める高さの上限</b>があり、こえた屍は消える。</p>
-  <p>みんなの屍を足場にして、ゴールの旗をめざせ。</p>
-  <p class="k">操作：← → で移動、↑ / スペース でジャンプ<br>スマホ：画面下のボタン　／　屍をタップすると名前が見られる</p>
-  <button class="go" id="go">挑む</button><br>
-  <button class="sub" id="reset">この端末の屍をぜんぶ消す（試作用）</button>
+
+<!-- ========== 層のメニュー ========== -->
+<div class="modal" id="floormenu"><div class="card">
+  <h3 id="fm-title"></h3><div id="fm-body"></div>
+  <button class="go" id="fm-play">挑む</button><br>
+  <button class="sub" id="fm-watch">見る（スペクター）</button>
+  <button class="sub" id="fm-close">とじる</button>
 </div></div>
-<script src="js/game.js?v=1"></script>
+
+<!-- ========== 越えた ========== -->
+<div class="modal" id="clearbox"><div class="card clear">
+  <div class="big" id="cl-big"></div>
+  <div class="csub" id="cl-sub"></div>
+  <p class="cmsg" id="cl-msg"></p>
+  <div id="cl-first" class="first">
+    <p>あなたが<b>はじめて越えた人</b>です。<br>到達者の碑に、XのIDを残しますか？（なくてもよい）</p>
+    <div class="xin"><span>@</span><input id="cl-xid" maxlength="16" placeholder="IDを入れる" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    <button class="sub" id="cl-xsave">刻む</button><button class="sub" id="cl-xskip">残さない（無名）</button>
+    <p class="tiny">※IDが本人のものかは確かめられません。</p>
+  </div>
+  <button class="go" id="cl-next">次の層へ</button><br>
+  <button class="sub" id="cl-share">投稿する</button>
+  <button class="sub" id="cl-again">もう一度</button>
+  <button class="sub" id="cl-title">タイトルへ</button>
+</div></div>
+
+<!-- ========== 碑 ========== -->
+<div class="modal" id="grave"><div class="card wide">
+  <div class="tabs"><button data-t="dead">屍の碑</button><button data-t="hero">到達者の碑</button></div>
+  <div class="gbody" id="gr-body"></div>
+  <button class="sub" id="gr-close">とじる</button>
+</div></div>
+
+<!-- ========== 詰み ========== -->
+<div class="modal" id="stuck"><div class="card">
+  <h3>詰んだ？</h3>
+  <div id="stuck-body"></div>
+  <button class="go" id="stuck-send">管理人に知らせる</button><br>
+  <button class="sub" id="stuck-close">とじる</button>
+</div></div>
+
+<!-- ========== 投稿 ========== -->
+<div class="modal" id="share"><div class="card wide">
+  <canvas id="sh-img" class="shimg"></canvas>
+  <pre class="shtext" id="sh-text"></pre>
+  <button class="go" id="sh-post">Xに投稿</button><br>
+  <button class="sub" id="sh-save">画像を保存</button>
+  <button class="sub" id="sh-close">とじる</button>
+</div></div>
+
+<!-- ========== あそびかた ========== -->
+<div class="modal" id="how"><div class="card wide how">
+  <h3>あそびかた</h3>
+  <p>あなたは名もなきキューブ。挑むたびに<b>ちがう名前</b>になる。チェックポイントはない。</p>
+  <p>死ぬと、その場所に<b>屍</b>が残って<b>足場</b>になる。穴に落ちれば底に積もり、トゲの上ならトゲをふさぐ。水には浮き、流砂には沈み、毒の花では溶ける。</p>
+  <p>屍は<b>全員で共有</b>。あなたの屍はすぐに、ほかの人の屍は入りなおすと現れる。</p>
+  <p>屍の列には<b>積める高さの上限</b>がある。こえた屍は消える（赤い印が上限のしるし）。</p>
+  <p>攻撃はできない。<b>よけて進め</b>。魔物は低い屍なら越えてくるが、<b>高い屍の壁は越えられない</b>。</p>
+  <p>5層ごとに<b>番人</b>がいる。倒せない。赤く光った所に何かが来る。</p>
+  <p>だれかが越えると、すぐに<b>次の層が開く</b>。みんなで最新の層に挑もう。全100層。</p>
+  <p>どうしても進めない（詰んだ）と思ったら<b>「詰んだ？」</b>ボタン。</p>
+  <p class="k">操作：← → で移動、↑ / スペース でジャンプ（長く押すと高くとぶ）<br>スマホ：画面下のボタン　／　屍をタップすると名前</p>
+  <button class="go" id="how-close">わかった</button>
+</div></div>
+
+<script src="js/firebase-config.js?v=1"></script>
+<script src="js/engine.js?v=1"></script>
+<script src="js/bosses.js?v=1"></script>
+<script src="js/reach.js?v=1"></script>
+<script src="js/render.js?v=1"></script>
+<script src="js/sound.js?v=1"></script>
+<script src="js/net.js?v=1"></script>
+<script src="js/main.js?v=1"></script>
 </body>
 </html>

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>シインクラッド 管理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #14121c; --ink: #f2e9d8; --gold: #ffd25a; --red: #e0503a; --dim: #9a90a8; --line: #4a4356; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'DotGothic16', monospace; padding: 14px; }
+  h1 { font-weight: 400; color: var(--gold); margin: 0 0 6px; font-size: 24px; }
+  p { line-height: 1.7; }
+  .dim { color: var(--dim); font-size: 13px; }
+  button { font: inherit; padding: 6px 12px; background: #2a2436; color: var(--ink); border: 2px solid var(--line); cursor: pointer; }
+  button.red { background: var(--red); border-color: #7a2216; color: #fff; }
+  input { font: inherit; padding: 6px 8px; background: #0c0a10; color: #fff; border: 2px solid var(--line); }
+  .f { border: 2px solid var(--line); margin: 10px 0; padding: 10px; background: #1f1b2a; }
+  .f h2 { margin: 0 0 6px; font-weight: 400; font-size: 18px; }
+  .f h2 b { color: var(--gold); font-weight: 400; }
+  .bad { color: #ff8a7a; } .ok { color: #8fe08f; }
+  canvas { width: 100%; image-rendering: pixelated; border: 1px solid var(--line); margin-top: 6px; background: #000; }
+  textarea { width: 100%; height: 150px; font: 12px monospace; background: #0c0a10; color: #ddd; border: 1px solid var(--line); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
+</style>
+</head>
+<body>
+<h1>シインクラッド 管理</h1>
+<p class="dim">「詰んだ？」の知らせと、各層の様子。消すときは、Firebaseの画面で入れた<b>管理のかぎ</b>が必要です（この画面にだけ入れます。どこにも保存しません）。</p>
+<div class="row"><span>管理のかぎ</span><input id="key" type="password" autocomplete="off" size="24"><button id="reload">読みなおす</button></div>
+<div class="row"><span>層を直接しらべる</span><input id="fno" type="number" min="1" max="100" value="1" style="width:80px"><button id="look">しらべる</button></div>
+<div id="list"><p>読みこみ中…</p></div>
+<script src="js/firebase-config.js?v=1"></script>
+<script src="js/engine.js?v=1"></script>
+<script src="js/bosses.js?v=1"></script>
+<script src="js/reach.js?v=1"></script>
+<script src="js/render.js?v=1"></script>
+<script src="js/net.js?v=1"></script>
+<script>
+(function () {
+  const SH = window.SH, NET = SH.NET, T = SH.T, $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const day = t => t ? new Date(t).toLocaleString('ja-JP') : 'なし';
+  const chunks = {};
+  function rleDecode(s, n) { const a = new Uint8Array(n); let i = 0, p = 0; while (p < s.length) { const c = s.charCodeAt(p) - 97; p++; let k = ''; while (p < s.length && s[p] >= '0' && s[p] <= '9') k += s[p++]; const m = k ? +k : 1; a.fill(c, i, i + m); i += m; } return a; }
+  async function getLevel(f) {
+    const ci = Math.ceil(f / 20); if (!chunks[ci]) chunks[ci] = fetch('levels/l' + ci + '.json?v=' + Date.now()).then(r => r.json());
+    const r = (await chunks[ci]).find(x => x.f === f);
+    return { f, name: r.n, theme: Math.ceil(f / 5) - 1, w: r.w, h: 16, tiles: rleDecode(r.t, r.w * 16), cap: Int8Array.from(r.c.split('').map(Number)), ents: r.e, goal: r.g, boss: r.b, need: r.need, start: { x: 2.1, y: 11 - SH.PHYS.PH } };
+  }
+  async function load() {
+    const box = $('list'); box.innerHTML = '<p>読みこみ中…</p>';
+    let rep = {}, stat = {}, open = {};
+    try { [rep, stat, open] = await Promise.all([NET.reports(), NET.rest('sh_stat').then(v => v || {}), NET.rest('sh_open').then(v => v || {})]); }
+    catch (e) { box.innerHTML = '<p class="bad">読みこめませんでした</p>'; return; }
+    const floors = Object.keys(rep).map(Number).sort((a, b) => a - b);
+    let latest = 1; for (const k in open) latest = Math.max(latest, Math.min(100, +k + 1));
+    box.innerHTML = `<p>いまの最新の層：<b>第${latest}層</b>　知らせのある層：${floors.length ? floors.map(f => '第' + f + '層').join('、') : 'なし'}</p>`;
+    for (const f of floors) box.appendChild(card(f, rep[f], stat[f] || {}, f === latest));
+  }
+  function card(f, reps, st, isLatest) {
+    const list = Object.values(reps || {}), auto = list.filter(r => r.a).length, mx = Math.max(0, ...list.map(r => r.m || 0)), last = Math.max(0, ...list.map(r => r.t || 0));
+    const el = document.createElement('div'); el.className = 'f';
+    el.innerHTML = `<h2>第<b>${f}</b>層 ${isLatest ? '（最新）' : ''}</h2>
+      <div>知らせ <b>${list.length}</b> 件（うち自動の判定で詰み <b>${auto}</b> 件）　知らせた人が届いた場所 最大 <b>${mx}</b> マス　最後の知らせ ${day(last)}</div>
+      <div>死んだ数 ${st.d || 0}　越えた人 ${st.f || 0}　いちばん先 ${st.m || 0} マス</div>
+      <div class="row"><button class="look">しらべる（屍の地図と自動の判定）</button></div><div class="out"></div>`;
+    el.querySelector('.look').onclick = () => inspect(f, el.querySelector('.out'), { reports: list.length, auto, mx, last, st });
+    return el;
+  }
+  async function inspect(f, out, info) {
+    out.innerHTML = '<p>しらべています…（大きな層は数秒かかります）</p>';
+    const lv = await getLevel(f), raw = await NET.rest('sh_cells/' + f), cor = NET.sanitize(lv, raw);
+    const rawN = Object.keys(raw || {}).length;
+    let lastT = 0, total = 0; for (const v of cor.values()) { lastT = Math.max(lastT, v.t); total += v.n; }
+    await new Promise(r => setTimeout(r, 20));
+    const res = SH.reach(lv, cor);
+    const col = new Int16Array(lv.w); for (const k of cor.keys()) col[k % lv.w]++;
+    const cand = [...res.deaths.values()].filter(d => col[d.x] < lv.cap[d.x]);
+    const stuck = !res.goal && cand.length === 0;
+    const pct = Math.floor(res.maxX / lv.goal * 100);
+    // 地図
+    const cv = document.createElement('canvas'), s = 6; cv.width = lv.w * s; cv.height = lv.h * s; const g = cv.getContext('2d');
+    const C = { 1: '#6b5a4a', 2: '#d8dce8', 3: '#3a8ad8', 4: '#e84a1a', 5: '#d8b26a', 6: '#bfe6f6', 7: '#a07ad8', 8: '#8a6a3a', 9: '#b0ff60', 10: '#666', 11: '#666', 12: '#3a2040', 16: '#fff' };
+    for (let y = 0; y < lv.h; y++) for (let x = 0; x < lv.w; x++) { const c = lv.tiles[y * lv.w + x]; if (C[c]) { g.fillStyle = C[c]; g.fillRect(x * s, y * s, s, s); } }
+    for (const [k, v] of cor) { const x = k % lv.w, y = Math.floor(k / lv.w); g.fillStyle = v.t > Date.now() - 86400000 ? '#ffd25a' : '#c07070'; g.fillRect(x * s + 1, y * s + 1, s - 2, s - 2); }
+    g.fillStyle = 'rgba(80,255,120,.25)'; for (const k of res.seen) { const x = k % lv.w, y = Math.floor(k / lv.w); g.fillRect(x * s, y * s, s, s); }
+    g.fillStyle = '#ff3030'; g.fillRect(res.maxX * s, 0, 2, lv.h * s);
+    g.fillStyle = '#ffd25a'; g.fillRect(lv.goal * s, 0, 3, lv.h * s);
+    const verdict = res.goal ? '<span class="ok">ゴールまで行ける道がある（詰みではない）</span>' : stuck ? '<span class="bad">詰み：ゴールに届かず、屍を積める場所もない</span>' : `<span>まだ屍を積める場所が ${cand.length} か所ある（みんなが死ねば進めるかもしれない）</span>`;
+    const text = `シインクラッド 第${f}層（${lv.name}）の様子
+自動の判定：${res.goal ? '詰みではない（ゴールまで行ける）' : stuck ? '詰み（ゴールに届かず、屍を積める場所もない）' : 'まだ屍を積める場所が' + cand.length + 'か所'}
+今の屍で行ける所：${res.maxX}マス／ゴール${lv.goal}マス（${pct}%）
+屍：${cor.size}か所（${total}人）、データ上は${rawN}か所（形がおかしい屍は数えていない）
+最後に屍が増えた日時：${day(lastT)}
+知らせ：${info.reports}件（自動の判定で詰み${info.auto}件）、最後の知らせ ${day(info.last)}、知らせた人が届いた最大 ${info.mx}マス
+死んだ数：${info.st.d || 0}　越えた人：${info.st.f || 0}　いちばん先：${info.st.m || 0}マス
+この層を作ったときの最小の屍の数（目安）：${lv.need}`;
+    out.innerHTML = `<p>${verdict}<br>今の屍で行ける所：${res.maxX} / ${lv.goal} マス（${pct}%）　屍 ${cor.size} か所（${total}人）　最後に増えた ${day(lastT)}</p>
+      <p class="dim">地図：茶＝岩、白＝トゲ、黄＝この1日の屍、赤＝それより前の屍、うすい緑＝今の屍で立てる所、赤い線＝行ける所の先、金の線＝ゴール</p>`;
+    out.appendChild(cv);
+    const ta = document.createElement('textarea'); ta.value = text; ta.readOnly = true; out.appendChild(document.createElement('p')).textContent = 'Claudeに渡す文（コピーして貼ってください）：'; out.appendChild(ta);
+    const row = document.createElement('div'); row.className = 'row';
+    const cp = document.createElement('button'); cp.textContent = 'コピー'; cp.onclick = () => { ta.select(); try { navigator.clipboard.writeText(ta.value); } catch (e) { document.execCommand('copy'); } cp.textContent = 'コピーしました'; };
+    const del = document.createElement('button'); del.className = 'red'; del.textContent = 'この層の屍をぜんぶ消す';
+    del.onclick = async () => {
+      const key = $('key').value.trim(); if (!key) { alert('管理のかぎを入れてください'); return; }
+      if (!confirm(`第${f}層の屍（${cor.size}か所・${total}人）をぜんぶ消します。もとにもどせません。よろしいですか？`)) return;
+      try { await NET.resetFloor(f, key); out.insertAdjacentHTML('beforeend', '<p class="ok">消しました。</p>'); setTimeout(load, 800); }
+      catch (e) { out.insertAdjacentHTML('beforeend', '<p class="bad">消せませんでした（かぎがちがうか、通信できません）</p>'); }
+    };
+    row.append(cp, del); out.appendChild(row);
+  }
+  $('reload').onclick = load;
+  $('look').onclick = () => { const f = Math.max(1, Math.min(100, +$('fno').value || 1)); const el = card(f, {}, {}, false); $('list').prepend(el); el.querySelector('.look').click(); };
+  load();
+})();
+</script>
+</body>
+</html>
