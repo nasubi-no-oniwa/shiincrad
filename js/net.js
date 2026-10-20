@@ -108,7 +108,23 @@
     return out;
   };
   // 屍を読みこむ
-  N.loadCells = async function (lv) { const v = await rest('sh_cells/' + lv.f); return N.sanitize(lv, v); };
+  N.loadCells = async function (lv) {
+    const v = await rest('sh_cells/' + lv.f) || {};
+    lv._raw = v; lv._fullAt = Date.now(); lv._maxT = 0; for (const k in v) if (v[k] && v[k].t > lv._maxT) lv._maxT = v[k].t;
+    return N.sanitize(lv, v);
+  };
+  // 挑みなおす前に、ほかの人の新しい屍を読む（前に読んだときより新しい分だけ）
+  N.syncCells = async function (lv, mine) {
+    if (!lv._raw) return null;
+    let v = null;
+    try { v = await rest('sh_cells/' + lv.f, { orderBy: 't', startAt: (lv._maxT || 0) + 1 }); }
+    catch (e) { if (Date.now() - (lv._fullAt || 0) < 30000) return null; v = await rest('sh_cells/' + lv.f); lv._raw = {}; lv._fullAt = Date.now(); }
+    for (const k in v || {}) { if (!v[k]) continue; lv._raw[k] = v[k]; if (v[k].t > lv._maxT) lv._maxT = v[k].t; }
+    // 自分の屍で、まだ届いていないもの
+    const raw = Object.assign({}, lv._raw);
+    for (const [k, c] of mine || []) { const key = (k % lv.w) + '_' + Math.floor(k / lv.w); if (!raw[key]) raw[key] = { n: c.n, l: c.last, t: c.t || 0 }; }
+    return N.sanitize(lv, raw);
+  };
   // =============================================
   //  死んだ：屍を＋1、死んだ数、いちばん先、屍の碑
   // =============================================

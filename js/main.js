@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '2';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '4';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -124,7 +124,7 @@
     try { lv = await getLevel(f); } catch (e) { $('loading').classList.remove('on'); toast('読みこめませんでした', '電波のよいところでもう一度'); show('title'); return; }
     try { cor = await NET.loadCells(lv); } catch (e) { cor = new Map(); toast('みんなの屍を読みこめませんでした', 'この端末の分だけで遊べます', 2600); }
     $('loading').classList.remove('on');
-    S.lv = lv; S.cor = cor; S.watch = !!opt.watch; S.latest = f === W.latest && !W.done;
+    S.lv = lv; S.cor = cor; S.nextCor = null; S.watch = !!opt.watch; S.latest = f === W.latest && !W.done;
     S.since = ME.seen[f] || 0; ME.seen[f] = NET.now(); saveMe();
     S.deathsHere = 0; S.reported = 0; S.best = ME.best[f] || 0; S.ghost = null; S.replay = null; S.first = null;
     view.setLevel(lv); view.resize();
@@ -149,6 +149,7 @@
     toast(`はじめて越えた「${c.n}」の走り`, '屍は「そのときの屍」です', 2200);
   }
   function spawn(first) {
+    if (S.nextCor) { S.cor = S.nextCor; S.nextCor = null; }
     S.name = newName();
     S.run = new SH.Run(S.lv, S.cor);
     S.rec = new SH.Rec(); S.acc = 0; S.deadT = 0;
@@ -235,6 +236,7 @@
     NET.died(S.lv, pl, name, mx).then(() => { S.pending = Math.max(0, S.pending - 1); const st = W.stat[fl] = W.stat[fl] || {}; st.d = (st.d || 0) + 1; st.m = Math.max(st.m || 0, Math.floor(mx)); updateHud(); refreshStat(); }).catch(() => { S.pending = Math.max(0, S.pending - 1); });
     updateHud();
     if (S.deathsHere % 15 === 0 && S.latest) setTimeout(() => autoStuck(false), 1200);
+    const lvNow = S.lv; S.syncP = NET.syncCells(lvNow, S.cor).then(m => { if (m && S.lv === lvNow) S.nextCor = m; }).catch(() => { });
     setTimeout(() => { if (S.run === run && $('game').classList.contains('on')) spawn(false); }, 1050);
   }
   let statT = 0;
@@ -275,7 +277,7 @@
   $('cl-xskip').onclick = () => { $('cl-first').style.display = 'none'; toast('「無名」として刻まれます'); };
   $('cl-next').onclick = () => { modal('clearbox', 0); startFloor(Math.min(100, S.lv.f + 1)); };
   $('cl-again').onclick = () => { modal('clearbox', 0); SND.bgm(S.lv.theme); spawn(false); };
-  $('cl-share').onclick = () => openShare();
+  $('cl-share').onclick = () => { S.shareMode = 'clear'; openShare(); };
   $('cl-title').onclick = () => { modal('clearbox', 0); toTitle(); };
   // ---------- 詰み ----------
   // 詰みのチェック（別の所で計算。使えない端末ではここで）
@@ -371,10 +373,13 @@
   // =============================================
   //  投稿・画像
   // =============================================
+  const TAGS = '#シインクラッド #gamedev #ゲーム制作';
+  const progPct = () => S.lv ? Math.min(99, Math.floor((S.best / S.lv.goal) * 100)) : 0;
   function shareText() {
     const ci = S.clearInfo;
-    if (ci) return `${fmt(ci.deadN)}人の屍を超えて、第${ci.f}層突破！\n名前は「${ci.name}」${(ci.ticks / 120).toFixed(1)}秒\n#シインクラッド\n${URL_GAME}`;
-    return `シインクラッド　いま第${W.latest}層。みんなの屍は${fmt(totalDead())}人。\n#シインクラッド\n${URL_GAME}`;
+    if (S.shareMode === 'clear' && ci) return `${fmt(ci.deadN)}人の屍を超えて、第${ci.f}層突破！\n名前は「${ci.name}」${(ci.ticks / 120).toFixed(1)}秒\n誰か続いてくれ！\n\n${TAGS}\n\n${URL_GAME}`;
+    if (S.shareMode === 'prog' && S.lv) return `シインクラッド第${S.lv.f}層の${progPct()}%地点に到達！\n${S.deathsHere ? S.deathsHere + '回死んだ。' : ''}誰か助けてくれ！\n\n${TAGS}\n\n${URL_GAME}`;
+    return `シインクラッド　いま第${W.latest}層。みんなの屍は${fmt(totalDead())}人。\n誰か助けてくれ！\n\n${TAGS}\n\n${URL_GAME}`;
   }
   function drawShare(cv) {
     const g = cv.getContext('2d'), Wd = 1200, Hd = 630; cv.width = Wd; cv.height = Hd;
@@ -390,7 +395,11 @@
     if (ci) {
       g.fillText(`${fmt(ci.deadN)}人の屍を超えて`, Wd / 2, 230); g.font = '86px DotGothic16, monospace'; g.fillStyle = '#fff'; g.fillText(`第${ci.f}層突破！`, Wd / 2, 340);
       g.font = '34px DotGothic16, monospace'; g.fillStyle = '#cfc6b8'; g.fillText(`${ci.name}　${(ci.ticks / 120).toFixed(1)}秒　${S.lv.name}`, Wd / 2, 410);
-    } else { g.fillText('シインクラッド', Wd / 2, 300); }
+    } else if (S.shareMode === 'prog' && S.lv) {
+      g.fillText(`第${S.lv.f}層　${S.lv.name}`, Wd / 2, 200); g.font = '96px DotGothic16, monospace'; g.fillStyle = '#fff'; g.fillText(`${progPct()}%地点に到達！`, Wd / 2, 320);
+      g.font = '46px DotGothic16, monospace'; g.fillStyle = '#ff9a7a'; g.fillText('誰か助けてくれ！', Wd / 2, 410);
+      if (S.deathsHere) { g.font = '30px DotGothic16, monospace'; g.fillStyle = '#cfc6b8'; g.fillText(`ここまでに${S.deathsHere}回死んだ`, Wd / 2, 465); }
+    } else { g.fillText('シインクラッド', Wd / 2, 260); g.font = '44px DotGothic16, monospace'; g.fillStyle = '#fff'; g.fillText(`いま第${W.latest}層。みんなの屍は${fmt(totalDead())}人。`, Wd / 2, 350); g.fillStyle = '#ff9a7a'; g.fillText('誰か助けてくれ！', Wd / 2, 420); }
     g.font = '30px DotGothic16, monospace'; g.fillStyle = '#9a90a8'; g.fillText('シインクラッド　#シインクラッド', Wd / 2, 560);
   }
   function openShare() {
@@ -400,8 +409,9 @@
   }
   $('sh-post').onclick = () => { open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText()), '_blank'); };
   $('sh-save').onclick = () => { const a = document.createElement('a'); a.download = 'shiincrad.png'; a.href = $('sh-img').toDataURL('image/png'); a.click(); };
-  $('sh-close').onclick = () => modal('share', 0);
-  $('b-share').onclick = () => { S.clearInfo = null; S.lv = S.lv || null; if (!S.lv) { getLevel(W.latest).then(lv => { S.lv = lv; S.run = null; openShare(); }); return; } openShare(); };
+  $('sh-close').onclick = () => { modal('share', 0); if (S.shareMode === 'prog') S.paused = false; };
+  $('g-share').onclick = () => { if (!S.lv) return; S.paused = true; S.shareMode = 'prog'; openShare(); };
+  $('b-share').onclick = () => { S.shareMode = 'title'; S.clearInfo = null; S.lv = S.lv || null; if (!S.lv) { getLevel(W.latest).then(lv => { S.lv = lv; S.run = null; openShare(); }); return; } openShare(); };
   // =============================================
   //  タイトルへ
   // =============================================

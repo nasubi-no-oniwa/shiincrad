@@ -10,8 +10,10 @@
   const SH = G.SH, T = SH.T, PW = SH.PHYS.PW, PH = SH.PHYS.PH;
   // 動き：[向き, ジャンプを押す長さ（0は押さない）, 横を押す長さ]
   const ACTS = [];
-  for (const d of [1, -1]) for (const j of [0, 6, 14, 60]) for (const h of [8, 20, 34, 999]) { if (j === 0 && h < 20) continue; ACTS.push([d, j, h]); }
-  ACTS.push([0, 60, 0]);
+  for (const d of [1, -1]) for (const j of [0, 6, 14, 60]) for (const h of [8, 20, 34, 999]) { if (j === 0 && h < 20) continue; ACTS.push([d, j, h, 0]); }
+  // 助走つき（後ろに立てる床があるときだけ。人は走ってきてから跳べるので）
+  for (const d of [1, -1]) for (const j of [6, 14, 60]) for (const h of [20, 999]) ACTS.push([d, j, h, 1]);
+  ACTS.push([0, 60, 0, 0]);
   // 計算用の層（敵・番人・天井などは外す。横に動く床は、その道すじを雲の足場とみなす）
   function staticLevel(lv) {
     const tiles = new Uint8Array(lv.tiles);
@@ -35,7 +37,8 @@
   function tryAct(slv, cor, x, y, a, lim) {
     const r = new SH.Run(slv, cor);
     r.p.x = x + (1 - PW) / 2; r.p.on = true; r.wasOn = true; if (slv.tiles[y * slv.w + x] === T.FLIP) { r.p.y = y; r.p.g = -1; } else r.p.y = y + 1 - PH;
-    const [d, jh, hh] = a; let air = false;
+    const [d, jh, hh, run] = a; let air = false;
+    if (run) r.p.vx = d * SH.PHYS.SPD;
     for (let t = 1; t <= (lim || 320); t++) {
       const inp = (t <= hh ? (d > 0 ? 2 : d < 0 ? 1 : 0) : 0) | (t <= jh ? 4 : 0);
       r.step(inp);
@@ -61,6 +64,7 @@
       const [x, y] = q.shift(); n++;
       if (x > maxX) maxX = x;
       for (const a of ACTS) {
+        if (a[3] && !standAt(r0, x - a[0], y)) continue;
         const res = tryAct(slv, cor, x, y, a);
         if (!res) continue;
         if (res.goal) { goal = true; if (!opt.full) return { goal, maxX: lv.goal, seen, deaths, n }; continue; }

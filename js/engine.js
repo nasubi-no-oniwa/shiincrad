@@ -186,6 +186,8 @@
             e.dx = (nx - (e.x === undefined ? nx : e.x)) / DT; e.dy = (ny - (e.y === undefined ? ny : e.y)) / DT; e.x = nx; e.y = ny; e.h = e.h || 0.5; break;
           }
           case 'crush': {  // 落ちてくる天井：上で待つ→落ちる→下で待つ→上がる。屍があるとその上で止まる
+            // jam：下の列がすべて屍で埋まる（上限まで積もる）と、屍がはさまって天井が止まる（第16層から）
+            if (e.jam) { let full = true, any = false; for (let x = Math.floor(e.x); x < Math.ceil(e.x + e.w - 0.01); x++) { if (this.cap[x] > 0) { any = true; if (this.col[x] < this.cap[x]) full = false; } } if (any && full) { e.jammed = true; e.y = e.y0; e.falling = false; e.warn = false; break; } }
             const per = e.per, f = ((t + (e.off || 0)) % per) / per;
             let bot = e.y0 + e.h; { // 下の限界：その下でいちばん上の固いもの
               let lim = this.H; for (let x = Math.floor(e.x); x < Math.ceil(e.x + e.w - 0.01); x++) { for (let y = Math.floor(e.y0 + e.h); y < this.H; y++) if (this.solid(x, y)) { lim = Math.min(lim, y); break; } }

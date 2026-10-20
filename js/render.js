@@ -192,6 +192,12 @@
         switch (e.k) {
           case 'plat': rect(e.x, e.y, e.w, e.h, '#a07a4a'); rect(e.x, e.y, e.w, 0.12, '#d8b070'); break;
           case 'crush': {
+            if (e.jammed) { // 屍がはさまって止まった天井：下まで屍のつっかえ棒、鎖はゆるむ
+              rect(e.x + e.w * 0.4, 0, e.w * 0.2, e.y, '#3a3a3a'); rect(e.x, e.y, e.w, e.h, '#4a4a52'); rect(e.x + 0.1, e.y + e.h, e.w - 0.2, 0.12, '#8a6a4a');
+              let gy0 = this.lv.h; for (let yy = Math.floor(e.y + e.h); yy < this.lv.h; yy++) if (run.solid(Math.floor(e.x), yy)) { gy0 = yy; break; }
+              for (let k = 0; k < 2; k++) rect(e.x + 0.25 + k * (e.w - 0.75), e.y + e.h, 0.25, Math.max(0, gy0 - e.y - e.h), 'rgba(160,130,100,.75)');
+              break;
+            }
             if (e.warn) { g.globalAlpha = 0.25 + 0.3 * blink; rect(e.x, e.y + e.h, e.w, 11 - e.y - e.h, '#ff3030'); g.globalAlpha = 1; }
             rect(e.x + e.w * 0.4, 0, e.w * 0.2, e.y, '#555'); rect(e.x, e.y, e.w, e.h, '#6a6a76'); rect(e.x, e.y + e.h - 0.2, e.w, 0.2, '#c8c8d8');
             for (let k = 0; k < e.w * 2; k++) { g.fillStyle = '#d8dce8'; g.beginPath(); g.moveTo((e.x + k * 0.5) * S, (e.y + e.h) * S); g.lineTo((e.x + k * 0.5 + 0.25) * S, (e.y + e.h + 0.3) * S); g.lineTo((e.x + k * 0.5 + 0.5) * S, (e.y + e.h) * S); g.fill(); }

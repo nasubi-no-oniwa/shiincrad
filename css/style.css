@@ -124,3 +124,6 @@ b { font-weight: 400; color: var(--gold); }
   .go { font-size: 18px; padding: 8px 24px; }
   .b { width: 60px; height: 60px; } .b.j { width: 76px; height: 76px; }
 }
+
+.hud .hb.wide { width: auto; padding: 0 8px; font-size: 13px; }
+#game.watching #g-share { display: none; }
