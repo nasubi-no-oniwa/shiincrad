@@ -85,6 +85,8 @@
       if (inWater) { gr *= 0.32; mf = 3.2; } else if (inSand) { gr *= 0.25; mf = 1.1; }
       if (here === T.UP) gr -= 62;
       p.vy += gr * DT; if (p.vy > mf) p.vy = mf; if (p.vy < -mf * 1.2 && !inWater) p.vy = Math.max(p.vy, -26);
+      // はしご（第25層から）：屍で止まった天井の下にかかる。ジャンプを押している間は登る、はなすとゆっくり下りる
+      if (p.g > 0 && this.ladderAt()) { p.lad = true; if (J) { p.vy = -4.5; p.on = false; } else if (p.vy > 2) p.vy = 2; } else p.lad = false;
       // 動く床に乗っている
       let ride = 0, rideY = 0;
       if (p.plat >= 0) { const e = this.ents[p.plat]; ride = e.dx || 0; rideY = e.dy || 0; }
@@ -107,6 +109,17 @@
       if (p.x + PW >= lv.goal) { this.clear = true; this.over = true; this.ev('clear'); }
     }
     ev(k, a) { this.events.push({ k, t: this.t, a }); }
+    // はしごにさわっているか（止まった天井の下、天井の下はしから地面まで）
+    ladderAt() {
+      const p = this.p;
+      for (const e of this.ents) {
+        if (e.k !== 'crush' || !e.lad || !e.jammed) continue;
+        if (p.x + PW > e.x + 0.2 && p.x < e.x + e.w - 0.2 && p.y + PH > e.y + e.h - 0.1 && p.y < this.H) {
+          if (p.y + PH * 0.5 > e.y + e.h - 0.6) return true;
+        }
+      }
+      return false;
+    }
     colX() {
       const p = this.p, y0 = Math.floor(p.y + 0.02), y1 = Math.floor(p.y + PH - 0.02);
       if (p.vx + 0 > 0 || true) {

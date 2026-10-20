@@ -195,7 +195,11 @@
             if (e.jammed) { // 屍がはさまって止まった天井：下まで屍のつっかえ棒、鎖はゆるむ
               rect(e.x + e.w * 0.4, 0, e.w * 0.2, e.y, '#3a3a3a'); rect(e.x, e.y, e.w, e.h, '#4a4a52'); rect(e.x + 0.1, e.y + e.h, e.w - 0.2, 0.12, '#8a6a4a');
               let gy0 = this.lv.h; for (let yy = Math.floor(e.y + e.h); yy < this.lv.h; yy++) if (run.solid(Math.floor(e.x), yy)) { gy0 = yy; break; }
-              for (let k = 0; k < 2; k++) rect(e.x + 0.25 + k * (e.w - 0.75), e.y + e.h, 0.25, Math.max(0, gy0 - e.y - e.h), 'rgba(160,130,100,.75)');
+              if (e.lad) { // はしご
+                const hh = Math.max(0, gy0 - e.y - e.h), lx = e.x + 0.3, lw = e.w - 0.6;
+                rect(lx, e.y + e.h, 0.12, hh, '#c89a5a'); rect(lx + lw - 0.12, e.y + e.h, 0.12, hh, '#c89a5a');
+                for (let yy = e.y + e.h + 0.3; yy < gy0; yy += 0.5) rect(lx, yy, lw, 0.1, '#e0b878');
+              } else for (let k = 0; k < 2; k++) rect(e.x + 0.25 + k * (e.w - 0.75), e.y + e.h, 0.25, Math.max(0, gy0 - e.y - e.h), 'rgba(160,130,100,.75)');
               break;
             }
             if (e.warn) { g.globalAlpha = 0.25 + 0.3 * blink; rect(e.x, e.y + e.h, e.w, 11 - e.y - e.h, '#ff3030'); g.globalAlpha = 1; }
