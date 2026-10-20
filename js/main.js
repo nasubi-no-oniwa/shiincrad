@@ -42,8 +42,11 @@
   // 確かめられなかった「開いた」記録（その記録のidごと覚える。新しい本物が来たら開く）
   const isFake = f => !!(W.open[f] && ME.fake[f] && ME.fake[f] === W.open[f].id);
   async function verifyOpen(g) {
+    const o = W.open[g]; if (!o) return;
+    ME.okOpen = ME.okOpen || {}; if (ME.okOpen[g] === o.id) return;   // 一度確かめた記録は読みなおさない（通信を減らす）
     try {
       const lv2 = await getLevel(g), cells = await NET.loadCells(lv2), c = await NET.firstClear(lv2, cells);
+      if (c) { ME.okOpen[g] = o.id; saveMe(); }
       if (!c && W.open[g]) { ME.fake[g] = W.open[g].id; saveMe(); computeLatest(); if (S.lv && S.lv.f === g + 1) { toast('この層は、まだ開いていませんでした', '越えた記録を確かめられませんでした', 2600); setTimeout(toTitle, 1500); } }
     } catch (e) { }
   }
@@ -131,7 +134,6 @@
     SND.bgm(lv.theme);
     if (S.watch) { S.run = new SH.Run(lv, cor); S.run.over = true; S.cam = 0; view.follow(0, 8, true); loadFirst(true); return; }
     if (f === 1) $('stone').style.display = ''; else $('stone').style.display = 'none';
-    loadFirst(false);
     if (S.latest && f > 1) verifyOpen(f - 1);
     spawn(true);
     if (!ME.tut) { ME.tut = 1; saveMe(); openHow(); }
@@ -235,7 +237,7 @@
     setTimeout(() => { if (S.run === run && $('game').classList.contains('on')) spawn(false); }, 1050);
   }
   let statT = 0;
-  function refreshStat() { if (Date.now() - statT < 8000) return; statT = Date.now(); NET.rest('sh_stat/' + S.lv.f).then(v => { if (v) { W.stat[S.lv.f] = v; updateHud(); } }).catch(() => { }); }
+  function refreshStat() { if (Date.now() - statT < 30000) return; statT = Date.now(); NET.rest('sh_stat/' + S.lv.f).then(v => { if (v) { W.stat[S.lv.f] = v; updateHud(); } }).catch(() => { }); }
   // ---------- 越えた ----------
   async function onClear() {
     const run = S.run, lv = S.lv, f = lv.f, ticks = run.t;
@@ -420,6 +422,6 @@
   NET.warm();
   requestAnimationFrame(loop);
   // 1分ごとに全体を読みなおす（タイトルにいるときだけ）
-  setInterval(() => { if ($('title').classList.contains('on')) refresh(); }, 60000);
+  setInterval(() => { if ($('title').classList.contains('on') && !document.hidden) refresh(); }, 180000);
   SH.UI = { show, toast, startFloor, toTitle, W, ME };
 })(window);

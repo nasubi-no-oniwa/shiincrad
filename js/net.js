@@ -37,50 +37,27 @@
     return r.json();
   }
   N.rest = rest;
-  // ---------- 常時接続（屍を＋1するのに使う） ----------
-  function loadScript(src) { return new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('load')); document.head.appendChild(el); }); }
-  let dbP = null, sdkSlow = false;
-  function getDb() {
-    if (dbP) return dbP;
-    dbP = (async () => {
-      const v = '10.12.2';
-      if (!G.firebase || !G.firebase.database) { await loadScript('https://www.gstatic.com/firebasejs/' + v + '/firebase-app-compat.js'); await loadScript('https://www.gstatic.com/firebasejs/' + v + '/firebase-database-compat.js'); }
-      if (!G.firebase.apps.length) G.firebase.initializeApp(G.JM.FIREBASE_CONFIG);
-      const db = G.firebase.database();
-      db.ref('.info/serverTimeOffset').on('value', s => { N.off = s.val() || 0; });
-      return db;
-    })();
-    dbP.catch(() => { dbP = null; sdkSlow = true; });
-    return dbP;
-  }
+  // ---------- 書きこみ（常時接続は使わない。同時接続の上限を食わないように） ----------
+  // 時刻はデータベースの時計で入れる
+  const SV = { '.sv': 'timestamp' };
   N.off = 0;
-  const now = () => Date.now() + (N.off || 0);
+  const now = () => Date.now();
   N.now = now;
   const perm = e => e && /permission/i.test(String(e.code || e.message || ''));
-  // 数を変える（取って→変えて→書く。ぶつかったらやりなおし）
+  // 数を変える：読んで→変えて→書く。ルールが「前の数＋1」しか通さないので、
+  // ほかの人と同時になって断られたら、読みなおしてやりなおす
   async function tx(path, fn) {
-    if (!sdkSlow) {
-      try { const d = await Promise.race([getDb(), late(6000)]); const r = await Promise.race([d.ref(path).transaction(fn), late(8000)]); return r.snapshot.val(); }
-      catch (e) { if (perm(e)) throw e; sdkSlow = true; }
+    for (let i = 0; i < 6; i++) {
+      const cur = await rest(path); const nv = fn(cur); if (nv === undefined) return cur;
+      try { await restWrite('PUT', path, nv); return nv; }
+      catch (e) { if (!perm(e)) throw e; await new Promise(r => setTimeout(r, 150 + Math.random() * 400)); }
     }
-    const cur = await rest(path); const nv = fn(cur); if (nv === undefined) return cur; await restWrite('PUT', path, nv); return nv;
+    throw new Error('混みあっています');
   }
-  async function push(path, val) {
-    if (!sdkSlow) {
-      try { const d = await Promise.race([getDb(), late(6000)]); const ref = d.ref(path).push(); await Promise.race([ref.set(val), late(8000)]); return ref.key; }
-      catch (e) { if (perm(e)) throw e; sdkSlow = true; }
-    }
-    const r = await restWrite('POST', path, val); return r && r.name;
-  }
-  async function update(val) {
-    if (!sdkSlow) {
-      try { const d = await Promise.race([getDb(), late(6000)]); await Promise.race([d.ref().update(val), late(8000)]); return; }
-      catch (e) { if (perm(e)) throw e; sdkSlow = true; }
-    }
-    await restWrite('PATCH', '', val);
-  }
+  async function push(path, val) { const r = await restWrite('POST', path, val); return r && r.name; }
+  async function update(val) { await restWrite('PATCH', '', val); }
   N._tx = tx; N._push = push; N._update = update;
-  N.warm = () => { getDb().catch(() => { }); };
+  N.warm = () => { };
   // ---------- 名前の形 ----------
   N.cleanName = s => String(s || '').replace(/[<>&"'\\\/.#$\[\]\n\r\t]/g, '').slice(0, 12);
   N.cleanX = s => { s = String(s || '').trim().replace(/^@/, ''); return /^[A-Za-z0-9_]{1,15}$/.test(s) ? s : ''; };
@@ -138,12 +115,12 @@
   N.died = async function (lv, place, name, maxX) {
     const f = lv.f, t = now(), jobs = [];
     if (place && !place.vanish) {
-      jobs.push(tx('sh_cells/' + f + '/' + place.x + '_' + place.y, cur => ({ n: ((cur && cur.n) || 0) + 1, l: name, t: now() })));
+      jobs.push(tx('sh_cells/' + f + '/' + place.x + '_' + place.y, cur => ({ n: ((cur && cur.n) || 0) + 1, l: name, t: SV })));
     }
     jobs.push(tx('sh_stat/' + f + '/d', cur => (cur || 0) + 1));
     const mx = Math.min(lv.goal, Math.floor(maxX));
     jobs.push(tx('sh_stat/' + f + '/m', cur => (cur || 0) >= mx ? undefined : mx));
-    jobs.push(push('sh_grave', { n: name, f, t }));
+    jobs.push(push('sh_grave', { n: name, f, t: SV }));
     const r = await Promise.allSettled(jobs);
     return r[0].status === 'fulfilled' ? r[0].value : null;
   };
@@ -154,9 +131,9 @@
   N.corParse = (s, w) => { const m = new Map(); for (const v of String(s || '').split('.')) { if (!v) continue; const k = parseInt(v, 36); if (k >= 0) m.set(k, { n: 1, last: '' }); } return m; };
   N.clear = async function (lv, name, xid, recStr, corStr, ticks, isLatest) {
     const f = lv.f, t = now();
-    const id = await push('sh_clear/' + f, { n: name, x: xid || '', t, r: recStr, c: corStr, k: ticks });
+    const id = await push('sh_clear/' + f, { n: name, x: xid || '', t: SV, r: recStr, c: corStr, k: ticks });
     const jobs = [tx('sh_stat/' + f + '/f', cur => (cur || 0) + 1), tx('sh_stat/' + f + '/m', () => lv.goal)];
-    if (isLatest && id) jobs.push(update({ ['sh_open/' + f]: { t, n: name, x: xid || '', id } }));
+    if (isLatest && id) jobs.push(update({ ['sh_open/' + f]: { t: SV, n: name, x: xid || '', id } }));
     await Promise.allSettled(jobs);
     return id;
   };
@@ -179,7 +156,7 @@
   };
   // その層の、はじめて越えた本当の人（いちばん早い記録から順に確かめる）
   N.firstClear = async function (lv, cells) {
-    const [v, rs] = await Promise.all([rest('sh_clear/' + lv.f, { orderBy: 't', limitToFirst: 8 }).catch(() => rest('sh_clear/' + lv.f)), rest('sh_reset/' + lv.f + '/t').catch(() => null)]);
+    const [v, rs] = await Promise.all([rest('sh_clear/' + lv.f, { orderBy: 't', limitToFirst: 3 }).catch(() => rest('sh_clear/' + lv.f)), rest('sh_reset/' + lv.f + '/t').catch(() => null)]);
     const list = Object.entries(v || {}).map(([id, c]) => Object.assign({ id }, c)).sort((a, b) => a.t - b.t);
     for (const c of list) if (N.verifyClear(lv, c, cells, rs)) return c;
     return null;
@@ -193,10 +170,10 @@
   };
   N.grave = async function (n) { const v = await rest('sh_grave', { orderBy: 't', limitToLast: n || 100 }); return Object.values(v || {}).filter(g => g && g.n).sort((a, b) => b.t - a.t); };
   // 詰みの知らせ
-  N.report = async function (f, maxX, auto) { return push('sh_rep/' + f, { t: now(), m: Math.floor(maxX), a: auto ? 1 : 0 }); };
+  N.report = async function (f, maxX, auto) { return push('sh_rep/' + f, { t: SV, m: Math.floor(maxX), a: auto ? 1 : 0 }); };
   N.reports = async function () { return (await rest('sh_rep')) || {}; };
   // 管理：その層の屍をぜんぶ消す（かぎが合わないと消えない）
   N.resetFloor = async function (f, key) {
-    await update({ ['sh_cells/' + f]: null, ['sh_rep/' + f]: null, ['sh_reset/' + f]: { t: now(), k: String(key) } });
+    await update({ ['sh_cells/' + f]: null, ['sh_rep/' + f]: null, ['sh_reset/' + f]: { t: SV, k: String(key) } });
   };
 })(typeof window !== 'undefined' ? window : globalThis);
