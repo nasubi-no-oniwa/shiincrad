@@ -38,16 +38,17 @@
   <div class="row"><span>第</span><input id="g-ck" type="number" min="0" max="100" style="width:70px"><span>層まで確認済みにする</span><button id="g-ckb">決める</button></div>
   <div class="row"><span>第</span><input id="g-from" type="number" min="2" max="100" style="width:70px"><span>層から上を、まだだれも越えていない状態に戻す</span><label><input type="checkbox" id="g-cells" checked> 屍も消す</label><button class="red" id="g-close">戻す</button></div>
   <div class="row"><span>第</span><input id="g-vf" type="number" min="1" max="100" style="width:70px"><span>層の越えた記録を確かめる</span><button id="g-vb">確かめる</button></div>
+  <div class="row"><span>第</span><input id="g-df" type="number" min="1" max="100" style="width:70px"><span>層に屍を置いた人を調べる</span><button id="g-db">調べる</button></div>
   <div id="g-out"></div>
 </div>
 <div class="row"><span>層を直接しらべる</span><input id="fno" type="number" min="1" max="100" value="1" style="width:80px"><button id="look">しらべる</button><button id="spec">スペクターで見る</button></div>
 <div id="list"><p>読みこみ中…</p></div>
-<script src="js/firebase-config.js?v=13"></script>
-<script src="js/engine.js?v=13"></script>
-<script src="js/bosses.js?v=13"></script>
-<script src="js/reach.js?v=13"></script>
-<script src="js/render.js?v=13"></script>
-<script src="js/net.js?v=13"></script>
+<script src="js/firebase-config.js?v=14"></script>
+<script src="js/engine.js?v=14"></script>
+<script src="js/bosses.js?v=14"></script>
+<script src="js/reach.js?v=14"></script>
+<script src="js/render.js?v=14"></script>
+<script src="js/net.js?v=14"></script>
 <script>
 (function () {
   const SH = window.SH, NET = SH.NET, T = SH.T, $ = id => document.getElementById(id);
@@ -149,6 +150,7 @@
       if ($('g-ck').value === '') $('g-ck').value = ck;
       if ($('g-from').value === '') $('g-from').value = ck + 1;
       if ($('g-vf').value === '') $('g-vf').value = Math.min(100, ck + 1);
+      if ($('g-df').value === '') $('g-df').value = Math.min(100, ck + 1);
     } catch (e) { box.innerHTML = fail(e); }
   }
   $('g-ckb').onclick = async () => {
@@ -179,6 +181,29 @@
         const b = document.createElement('button'); b.className = 'red'; b.textContent = `にせ記録を消す（${bad.length}こ${openBad ? '・開いた印も' : ''}）`;
         b.onclick = async () => { if (!confirm('にせ記録を消します。よろしいですか？')) return; try { await login(); await NET.purge(f, bad.map(c => c.id), openBad); out.insertAdjacentHTML('beforeend', '<p class="ok">消しました。</p>'); guard(); } catch (e) { out.insertAdjacentHTML('beforeend', fail(e)); } };
         out.appendChild(b);
+      }
+    } catch (e) { out.innerHTML = fail(e); }
+  };
+  // 屍を置いた人ごとに見る → ずるの人の屍だけ取り除く
+  $('g-db').onclick = async () => {
+    const f = Math.max(1, Math.min(100, Math.floor(+$('g-df').value || 1))), out = $('g-out');
+    out.innerHTML = '<p>調べています…</p>';
+    try {
+      const [list, lv] = await Promise.all([NET.dlog(f), getLevel(f)]);
+      const total = list.reduce((s, g) => s + g.n, 0);
+      if (!list.length) { out.innerHTML = `<p>第${f}層：だれがどこに置いたかの記録はまだありません（この仕組みを入れる前の屍は記録がありません）。</p>`; return; }
+      const sec = ms => ms > 0 ? (ms / 1000 < 90 ? (ms / 1000).toFixed(0) + '秒' : (ms / 60000).toFixed(0) + '分') : '-';
+      out.innerHTML = `<p>第${f}層：屍の記録 ${total} こ・${list.length} 人（多い順に30人まで）<br><small class="dim">あやしい目安：ほとんど時間をかけずにたくさん置いている／ふつうは届かない奥（ゴールは ${lv.goal} マス目）に置いている</small></p>`;
+      const ol = document.createElement('ol'); out.appendChild(ol);
+      for (const g of list.slice(0, 30)) {
+        const li = document.createElement('li');
+        li.innerHTML = `屍 <b>${g.n}</b> こ　${day(g.first)}〜　かけた時間 ${sec(g.last - g.first)}　場所 ${g.minX}〜${g.maxX} マス目　<small class="dim">ID ${esc(g.u.slice(0, 8))}…</small> `;
+        const b = document.createElement('button'); b.className = 'red'; b.textContent = 'この人の屍を取り除く';
+        b.onclick = async () => {
+          if (!confirm(`この人が第${f}層に置いた屍 ${g.n} こを取り除きます。\n（その屍を足場にして越えた人の記録は、認められなくなることがあります）\nもとにもどせません。よろしいですか？`)) return;
+          try { await login(); const n = await NET.removeBy(f, g); b.remove(); li.insertAdjacentHTML('beforeend', `<span class="ok">${n} か所から取り除きました</span>`); } catch (e) { li.insertAdjacentHTML('beforeend', fail(e)); }
+        };
+        li.appendChild(b); ol.appendChild(li);
       }
     } catch (e) { out.innerHTML = fail(e); }
   };
