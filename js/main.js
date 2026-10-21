@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '23';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '24';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -435,7 +435,11 @@
       z.el.addEventListener('pointerup', up); z.el.addEventListener('pointercancel', up); z.el.addEventListener('lostpointercapture', up);
       z.el.addEventListener('contextmenu', e => e.preventDefault());
     }
-    return () => { for (const p of ptr.values()) set(p.k, -1); ptr.clear(); };
+    const release = () => { for (const p of ptr.values()) set(p.k, -1); ptr.clear(); for (const k in cnt) if (cnt[k]) { cnt[k] = 0; keys[k] = 0; if (els[k]) els[k].classList.remove('on'); } };
+    // 守り：画面からすべての指が離れたら、どのボタンも必ず離したことにする（「離した」が届かなかったときの押しっぱなしを防ぐ）
+    const allUp = e => { if (!e.touches || e.touches.length === 0) release(); };
+    document.addEventListener('touchend', allUp, true); document.addEventListener('touchcancel', allUp, true);
+    return release;
   }
   const padRelease = bindPad([{ el: $('zL'), btns: [{ el: $('bl'), k: 'l' }, { el: $('br'), k: 'r' }] }, { el: $('zR'), btns: [{ el: $('bj'), k: 'j' }] }], S.keys, () => SND.unlock());
   document.addEventListener('visibilitychange', () => { if (document.hidden) padRelease(); });
