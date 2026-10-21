@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '21';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '22';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -416,12 +416,29 @@
   const KM = { ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r', ArrowUp: 'j', KeyW: 'j', Space: 'j', KeyZ: 'j' };
   addEventListener('keydown', e => { const k = KM[e.code]; if (k && $('game').classList.contains('on')) { S.keys[k] = 1; e.preventDefault(); SND.unlock(); } if (e.code === 'Escape' && $('game').classList.contains('on')) toTitle(); });
   addEventListener('keyup', e => { const k = KM[e.code]; if (k) S.keys[k] = 0; });
-  addEventListener('blur', () => { S.keys.l = S.keys.r = S.keys.j = 0; });
-  for (const [id, k] of [['bl', 'l'], ['br', 'r'], ['bj', 'j']]) {
-    const b = $(id);
-    const on = e => { e.preventDefault(); S.keys[k] = 1; b.classList.add('on'); SND.unlock(); }, off = e => { e.preventDefault(); S.keys[k] = 0; b.classList.remove('on'); };
-    b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
+  addEventListener('blur', () => { S.keys.l = S.keys.r = S.keys.j = 0; if (typeof padRelease === 'function') padRelease(); });
+
+  // ---------- スマホのボタン（指を追いかける） ----------
+  //  ・ボタンのまわりの「ゾーン」で指を受ける。すき間を押しても、いちばん近いボタンが効く
+  //  ・押したまま指をすべらせると、すべらせた先のボタンに切りかわる（◀から▶へ、など）
+  //  ・指1本ずつを別々に追いかける（左手で動きながら右手で跳んでも、両方効く）
+  //  ・指がゾーンの外に出ても、離すまでは押したまま
+  function bindPad(zones, keys, onPress) {
+    const ptr = new Map(), cnt = {}, els = {};
+    for (const z of zones) for (const b of z.btns) els[b.k] = b.el;
+    const set = (k, d) => { cnt[k] = Math.max(0, (cnt[k] || 0) + d); keys[k] = cnt[k] > 0 ? 1 : 0; if (els[k]) els[k].classList.toggle('on', keys[k] === 1); };
+    const pick = (z, x, y) => { let best = z.btns[0], bd = Infinity; for (const b of z.btns) { const r = b.el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, d = (x - cx) * (x - cx) + (y - cy) * (y - cy) * 0.25; if (d < bd) { bd = d; best = b; } } return best.k; };
+    for (const z of zones) {
+      z.el.addEventListener('pointerdown', e => { e.preventDefault(); try { z.el.setPointerCapture(e.pointerId); } catch (er) { } if (ptr.has(e.pointerId)) return; const k = pick(z, e.clientX, e.clientY); ptr.set(e.pointerId, { z, k }); set(k, 1); if (onPress) onPress(); });
+      z.el.addEventListener('pointermove', e => { const p = ptr.get(e.pointerId); if (!p) return; const k = pick(p.z, e.clientX, e.clientY); if (k !== p.k) { set(p.k, -1); p.k = k; set(k, 1); } });
+      const up = e => { const p = ptr.get(e.pointerId); if (!p) return; ptr.delete(e.pointerId); set(p.k, -1); };
+      z.el.addEventListener('pointerup', up); z.el.addEventListener('pointercancel', up); z.el.addEventListener('lostpointercapture', up);
+      z.el.addEventListener('contextmenu', e => e.preventDefault());
+    }
+    return () => { for (const p of ptr.values()) set(p.k, -1); ptr.clear(); };
   }
+  const padRelease = bindPad([{ el: $('zL'), btns: [{ el: $('bl'), k: 'l' }, { el: $('br'), k: 'r' }] }, { el: $('zR'), btns: [{ el: $('bj'), k: 'j' }] }], S.keys, () => SND.unlock());
+  document.addEventListener('visibilitychange', () => { if (document.hidden) padRelease(); });
   addEventListener('resize', () => { view.resize(); if (S.run) view.follow(S.run.p.x, S.run.p.y, true); });
   addEventListener('contextmenu', e => e.preventDefault());
   // =============================================

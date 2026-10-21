@@ -72,10 +72,12 @@ b { font-weight: 400; color: var(--gold); }
 .stuck { position: fixed; right: max(10px, env(safe-area-inset-right)); top: calc(max(6px, env(safe-area-inset-top)) + 50px); font-size: 12px; padding: 4px 8px; background: rgba(0,0,0,.4); color: #d8d0c4; border: 1px solid rgba(255,255,255,.25); }
 .stone { position: fixed; left: max(10px, env(safe-area-inset-left)); top: calc(max(6px, env(safe-area-inset-top)) + 50px); font-size: 12px; padding: 4px 8px; background: rgba(60,50,70,.7); color: var(--gold); border: 1px solid var(--gold); }
 .btns { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; padding: 0 max(14px, env(safe-area-inset-left)) max(14px, env(safe-area-inset-bottom)); pointer-events: none !important; }
-.btns div { display: flex; gap: 12px; }
-.b { pointer-events: auto; width: 72px; height: 72px; border-radius: 16px; border: 2px solid rgba(255,255,255,.35); background: rgba(255,255,255,.1); color: #fff; font-size: 26px; display: flex; align-items: center; justify-content: center; touch-action: none; }
+.btns div { display: flex; gap: 12px; align-items: flex-end; pointer-events: auto; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; padding-top: 36px; }
+.btns #zL { padding-right: 40px; }
+.btns #zR { padding-left: 40px; }
+.b { pointer-events: none; width: 82px; height: 82px; border-radius: 16px; border: 2px solid rgba(255,255,255,.35); background: rgba(255,255,255,.1); color: #fff; font-size: 26px; display: flex; align-items: center; justify-content: center; touch-action: none; }
 .b.on { background: rgba(255,210,90,.35); }
-.b.j { width: 92px; height: 92px; border-radius: 50%; flex-direction: column; line-height: 1; }
+.b.j { width: 104px; height: 104px; border-radius: 50%; flex-direction: column; line-height: 1; }
 .b.j small { font-size: 12px; margin-top: 4px; }
 @media (hover: hover) and (pointer: fine) { .btns { display: none; } }
 .watchbar { display: none; position: fixed; left: 0; right: 0; bottom: max(14px, env(safe-area-inset-bottom)); text-align: center; }
