@@ -200,6 +200,20 @@
                 rect(lx, e.y + e.h, 0.12, hh, '#c89a5a'); rect(lx + lw - 0.12, e.y + e.h, 0.12, hh, '#c89a5a');
                 for (let yy = e.y + e.h + 0.3; yy < gy0; yy += 0.5) rect(lx, yy, lw, 0.1, '#e0b878');
               } else for (let k = 0; k < 2; k++) rect(e.x + 0.25 + k * (e.w - 0.75), e.y + e.h, 0.25, Math.max(0, gy0 - e.y - e.h), 'rgba(160,130,100,.75)');
+              if (e.zap) { // 電気の梯子：天井の下の列ぜんぶ（屍の上まで）。知らせは黄色く点滅、流れている間は青白い稲妻
+                const top = e.y + e.h;
+                rect(e.x, top, e.w, 0.14, e.zon ? '#bfe8ff' : e.zwarn ? '#ffe060' : '#5a7088');   // 天井の下の電極
+                for (let cx = Math.floor(e.x); cx < Math.ceil(e.x + e.w - 0.01); cx++) {
+                  let gy = this.lv.h; for (let yy = Math.floor(top); yy < this.lv.h; yy++) if (run.solid(cx, yy)) { gy = yy; break; }
+                  const hh = Math.max(0, gy - top); if (hh <= 0) continue;
+                  if (e.zwarn) { g.globalAlpha = 0.18 + 0.3 * blink; rect(cx, top, 1, hh, '#ffe060'); g.globalAlpha = 1; }
+                  if (e.zon) {
+                    g.globalAlpha = 0.28; rect(cx, top, 1, hh, '#7fd4ff'); g.globalAlpha = 1;
+                    g.strokeStyle = '#eaf8ff'; g.lineWidth = S * 0.1;
+                    for (let s = 0; s < 2; s++) { g.beginPath(); let xx = cx + 0.5; g.moveTo(xx * S, top * S); for (let yy = top + 0.4; yy < gy; yy += 0.4) { xx = cx + 0.5 + (hr(Math.floor(yy * 10) * 13 + run.t + s * 97 + cx * 31) - 0.5) * 0.8; g.lineTo(xx * S, yy * S); } g.lineTo((cx + 0.5) * S, gy * S); g.stroke(); }
+                  }
+                }
+              }
               break;
             }
             if (e.warn) { g.globalAlpha = 0.25 + 0.3 * blink; rect(e.x, e.y + e.h, e.w, 11 - e.y - e.h, '#ff3030'); g.globalAlpha = 1; }

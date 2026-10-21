@@ -1,5 +1,7 @@
 // 詰みのチェックを、遊びの手を止めずに別の所で計算する
-importScripts('engine.js?v=11', 'bosses.js?v=11', 'reach.js?v=11');
+// 版は呼び出し元（stuck-worker.js?v=○○）に合わせる（古い計算ファイルを読まないように）
+const V = ((self.location && self.location.search || '').match(/v=([^&]+)/) || [])[1] || '0';
+importScripts('engine.js?v=' + V, 'bosses.js?v=' + V, 'reach.js?v=' + V);
 onmessage = function (ev) {
   const { id, lv, cor } = ev.data;
   try {

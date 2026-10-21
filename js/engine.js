@@ -200,7 +200,12 @@
           }
           case 'crush': {  // 落ちてくる天井：上で待つ→落ちる→下で待つ→上がる。屍があるとその上で止まる
             // jam：下の列がすべて屍で埋まる（上限まで積もる）と、屍がはさまって天井が止まる（第16層から）
-            if (e.jam) { const jx = e.hx !== undefined ? e.hx : e.x; let full = true, any = false; for (let x = Math.floor(jx); x < Math.ceil(jx + e.w - 0.01); x++) { if (this.cap[x] > 0) { any = true; if (this.col[x] < this.cap[x]) full = false; } } if (any && full) { e.jammed = true; e.x = jx; e.y = e.y0; e.falling = false; e.warn = false; break; } }
+            if (e.jam) { const jx = e.hx !== undefined ? e.hx : e.x; let full = true, any = false; for (let x = Math.floor(jx); x < Math.ceil(jx + e.w - 0.01); x++) { if (this.cap[x] > 0) { any = true; if (this.col[x] < this.cap[x]) full = false; } } if (any && full) {
+              e.jammed = true; e.x = jx; e.y = e.y0; e.falling = false; e.warn = false;
+              // zap（第65層から）：止まった天井の下（梯子と、その下の列ぜんぶ）に電気が流れる。1.5秒ごとに0.5秒流れる。流れる0.25秒前に知らせ
+              if (e.zap) { const zf = (t + (e.zo || 0)) % 180; e.zon = zf < 60; e.zwarn = zf >= 150; if (e.zon && !e.st.z) { e.st.z = 1; this.ev('zap', e.x); } if (!e.zon) e.st.z = 0; }
+              break;
+            } }
             const per = e.per, f = ((t + (e.off || 0)) % per) / per;
             let bot = e.y0 + e.h; { // 下の限界：その下でいちばん上の固いもの
               let lim = this.H; for (let x = Math.floor(e.x); x < Math.ceil(e.x + e.w - 0.01); x++) { for (let y = Math.floor(e.y0 + e.h); y < this.H; y++) if (this.solid(x, y)) { lim = Math.min(lim, y); break; } }
@@ -280,7 +285,7 @@
     }
     entHit(e) {
       switch (e.k) {
-        case 'crush': if (e.jammed) return null; return (e.v2 ? e.kill : (e.falling || e.y > e.y0 + 0.05)) && this.hitRect(e.x, e.y, e.w, e.h, 0.12) ? 'crush' : null;
+        case 'crush': if (e.jammed) return e.zap && e.zon && this.hitRect(e.x, e.y + e.h, e.w, this.H - e.y - e.h, 0.15) ? 'zap' : null; return (e.v2 ? e.kill : (e.falling || e.y > e.y0 + 0.05)) && this.hitRect(e.x, e.y, e.w, e.h, 0.12) ? 'crush' : null;
         case 'saw': { const p = this.p, dx = p.x + PW / 2 - e.x, dy = p.y + PH / 2 - e.y, r = (e.rad || 0.5) + 0.3; return dx * dx + dy * dy < r * r ? 'saw' : null; }
         case 'jet': if (!e.on) return null; return this.hitRect(e.x, e.dir < 0 ? e.y - e.len + 1 : e.y, 1, e.len, 0.15) ? 'fire' : null;
         case 'bolt': return e.on && this.hitRect(Math.floor(e.x), 0, 1, e.yb, 0.1) ? 'bolt' : null;
@@ -328,6 +333,7 @@
       }
       if (!vanish && !up) while (y > 0 && this.tile(x, y - 1) === T.WATER && !this.hasCorpse(x, y - 1)) y--; // 水の底でも水面へ浮く
       if (this.tile(x, y) === T.POISON) vanish = 'poison';
+      if (kind === 'zap') vanish = 'zap';   // しびれた屍は残らない
       if (!vanish && this.col[x] >= this.cap[x]) vanish = 'cap';
       if (!vanish && this.hasCorpse(x, y)) { // 同じマス（上に積めない）
         const d = up ? 1 : -1; if (y + d >= 0 && y + d < this.H && !this.solidFor(x, y + d)) y += d; else vanish = 'cap';

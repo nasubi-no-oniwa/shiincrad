@@ -134,6 +134,7 @@
       case 'tap': note(d, t, 84, 0.05, 'square', 0.05); break;
       case 'open': [60, 64, 67, 72, 76, 79, 84].forEach((m, i) => note(d, t + i * 0.07, m, 0.5, 'triangle', 0.08)); break;
       case 'warn': note(d, t, 88, 0.06, 'square', 0.03); break;
+      case 'zap': noise(d, t, 0.3, 0.07, 5200, 'bandpass'); note(d, t, 31, 0.3, 'sawtooth', 0.04, { vib: 1 }); break;
     }
   };
 })(typeof window !== 'undefined' ? window : globalThis);

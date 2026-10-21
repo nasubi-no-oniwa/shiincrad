@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '12';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '13';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -228,6 +228,7 @@
         case 'land': SND.se('land'); break;
         case 'crush': SND.se('crush'); view.shake = Math.max(view.shake, 0.4); break;
         case 'bolt': SND.se('bolt'); view.shake = Math.max(view.shake, 0.5); break;
+        case 'zap': if (Math.abs(e.a - run.p.x) < 14) { SND.se('zap'); if (!S.zapTip && !S.watch) { S.zapTip = 1; toast('電気の梯子', '黄色く光ったら、電気が流れる', 2200); } } break;   // 近くの電気の梯子だけ鳴らす
         case 'quake': SND.se('quake'); break;
         case 'trap': SND.se('trap'); break;
         case 'boss': SND.se('boss'); { const b = run.ents.find(x => x.k === 'boss'); toast((S.lv.q ? '関門の番人　' : '番人　') + (b ? b.name : ''), '倒せない。よけて、越えろ', 2200); } break;
@@ -236,7 +237,7 @@
     run.events.length = 0;
   }
   // ---------- 死んだ ----------
-  const KIND = { spike: 'トゲ', lava: '溶岩', poison: '毒の花', sand: '流砂', pit: '奈落', crush: '落ちる天井', saw: '回る刃', fire: '炎', bolt: '雷', water: '水', enemy: '魔物', boss: '番人' };
+  const KIND = { spike: 'トゲ', lava: '溶岩', poison: '毒の花', sand: '流砂', pit: '奈落', crush: '落ちる天井', saw: '回る刃', fire: '炎', bolt: '雷', zap: '電気の梯子', water: '水', enemy: '魔物', boss: '番人' };
   function onDie() {
     const run = S.run, pl = run.place, name = S.name;
     SND.se('die'); view.shake = 0.8; view.burst(run.p.x + 0.4, run.p.y + 0.4, `hsl(${SH.hue(name)},70%,60%)`, 16);
@@ -245,6 +246,7 @@
     if (pl.vanish === 'cap') { sub = 'ここはもう屍が積めない。屍は消えた'; SND.se('vanish'); }
     else if (pl.vanish === 'fall') { sub = '奈落に落ちた。屍は残らない'; SND.se('vanish'); }
     else if (pl.vanish === 'poison') { sub = '毒の花で屍が溶けた'; SND.se('vanish'); }
+    else if (pl.vanish === 'zap') { sub = '電気の梯子でしびれた。屍は残らない'; SND.se('vanish'); }
     else {
       SH.addCorpse(S.cor, S.lv, pl.x, pl.y, name); const c = S.cor.get(pl.y * S.lv.w + pl.x); c.t = NET.now() + 1; c.last = name;
       setTimeout(() => SND.se('pile'), 250);
