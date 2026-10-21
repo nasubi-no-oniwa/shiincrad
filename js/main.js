@@ -11,14 +11,15 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '11';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '12';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
   const newName = () => { const p = PRE[Math.floor(Math.random() * PRE.length)], n = NAME[Math.floor(Math.random() * NAME.length)]; return (p + n).slice(0, 12); };
   // ---------- 自分の記録（この端末） ----------
   const ME = Object.assign({ dead: 0, clears: {}, best: {}, seen: {}, fake: {}, tut: 0 }, NET.store('shiin_me') || {});
-  if (!ME.fv || ME.fv < 2) { ME.fake = {}; ME.okOpen = {}; ME.fv = 2; }   // 確かめ方を変えたので、前の判断はやりなおす
+  if (!ME.fv || ME.fv < 3) { ME.fake = {}; ME.okOpen = {}; ME.ok3 = {}; ME.ng3 = {}; ME.fv = 3; }   // 確かめ方を変えたので、前の判断はやりなおす
+  ME.ok3 = ME.ok3 || {}; ME.ng3 = ME.ng3 || {};
   const saveMe = () => NET.store('shiin_me', ME);
   // ---------- 層を読む（20層ずつ） ----------
   const chunks = {}; let INDEX = null;
@@ -40,27 +41,41 @@
   let HIST = null;
   async function getVariants(f) { try { if (!HIST) HIST = fetch('levels/hist.json?v=' + SH.VER).then(r => r.ok ? r.json() : {}); const h = await HIST; return (h[f] || []).map(decodeRec); } catch (e) { return []; } }
   // ---------- 全体の状態 ----------
-  const W = { open: {}, stat: {}, latest: 1, loaded: false };
+  // ---------- 全体の状態 ----------
+  //  「開いた」の印（sh_open）は信じない。その層の越えた記録を、この端末で計算しなおして確かめた層だけ開く。
+  //  ckpt（管理人が確かめた層）までは確かめずに開く。そこから上は、下の層から順に1つずつ確かめる
+  const CK0 = 60;   // この版を出したときに確かめ済みの層
+  const W = { open: {}, stat: {}, latest: 1, loaded: false, ckpt: CK0 };
+  const okFloor = f => { const o = W.open[f]; if (!o) return false; if (f <= W.ckpt) return true; const v = ME.ok3[f]; return !!(v && v.t === o.t); };
+  // その層をはじめて越えた人（確かめた記録の名前。管理人が確かめた層は印のまま）
+  const opener = f => { const o = W.open[f]; if (!o || !okFloor(f)) return null; if (f <= W.ckpt) return o; const v = ME.ok3[f]; return { t: o.t, n: v.n, x: o.id === v.id && o.x ? o.x : v.x, id: v.id }; };
   function computeLatest() {
-    let L = 1; for (const k in W.open) { const f = +k; if (f >= 1 && f <= 100 && !isFake(f) && f + 1 > L) L = Math.min(100, f + 1); }
-    // 100層を越えたら完全制覇
-    W.done = !!(W.open[100] && !isFake(100));
-    W.latest = L; return L;
+    let L = 1; while (L <= 100 && okFloor(L)) L++;
+    W.done = L > 100; W.latest = Math.min(100, L); return W.latest;
   }
-  // 確かめられなかった「開いた」記録（その記録のidごと覚える。新しい本物が来たら開く）
-  const isFake = f => !!(W.open[f] && ME.fake[f] && ME.fake[f] === W.open[f].id);
-  async function verifyOpen(g) {
-    const o = W.open[g]; if (!o) return;
-    ME.okOpen = ME.okOpen || {}; if (ME.okOpen[g] === o.id) return;   // 一度確かめた記録は読みなおさない（通信を減らす）
-    try {
-      const lv2 = await getLevel(g), cells = await NET.loadCells(lv2), c = await NET.firstClear(lv2, cells, await getVariants(g));
-      if (c) { ME.okOpen[g] = o.id; saveMe(); }
-      if (!c && W.open[g]) { ME.fake[g] = W.open[g].id; saveMe(); computeLatest(); if (S.lv && S.lv.f === g + 1) { toast('この層は、まだ開いていませんでした', '越えた記録を確かめられませんでした', 2600); setTimeout(toTitle, 1500); } }
-    } catch (e) { }
+  // 下から順に、まだ確かめていない「開いた」層を確かめる
+  let chainP = null;
+  function verifyChain() {
+    if (chainP) return chainP;
+    chainP = (async () => {
+      for (let n = 0; n < 100; n++) {
+        const f = computeLatest(); if (W.done) break;
+        const o = W.open[f]; if (!o || f <= W.ckpt) break;
+        const ng = ME.ng3[f]; if (ng && ng.t === o.t && Date.now() - ng.at < 300000) break;   // さっきだめだった印は5分あける
+        let c = null;
+        try { const lv2 = await getLevel(f), cells = await NET.loadCells(lv2); c = await NET.firstClear(lv2, cells, await getVariants(f)); }
+        catch (e) { break; }   // 読めない → あとで
+        if (W.open[f] !== o) continue;
+        if (c) { ME.ok3[f] = { t: o.t, id: c.id, n: NET.cleanName(c.n) || '名無し', x: NET.cleanX(c.x) }; delete ME.ng3[f]; saveMe(); computeLatest(); title.paint(); }
+        else { ME.ng3[f] = { t: o.t, at: Date.now() }; saveMe(); break; }
+      }
+    })().finally(() => { chainP = null; });
+    return chainP;
   }
   async function refresh() {
-    try { const o = await NET.overview(); W.open = o.open; W.stat = o.stat; W.loaded = true; } catch (e) { W.loaded = false; }
+    try { const o = await NET.overview(); W.open = o.open; W.stat = o.stat; W.ckpt = o.ckpt == null ? CK0 : o.ckpt; W.loaded = true; } catch (e) { W.loaded = false; }
     computeLatest(); title.paint();
+    if (W.loaded) verifyChain().then(() => title.paint()).catch(() => { });
   }
   const totalDead = () => { let n = 0; for (const k in W.stat) n += (W.stat[k] && W.stat[k].d) || 0; return n; };
   // ---------- 画面の切りかえ ----------
@@ -83,7 +98,7 @@
       $('t-ldead').textContent = fmt(st.d || 0);
       $('go-latest').textContent = W.done ? '頂をながめる' : `第${L}層に挑む`;
       // 開いた知らせ（新しい順）
-      const news = Object.entries(W.open).filter(([f]) => !isFake(f)).map(([f, o]) => ({ f: +f, o })).sort((a, b) => b.o.t - a.o.t).slice(0, 12);
+      const news = Object.keys(W.open).map(Number).filter(f => okFloor(f)).map(f => ({ f, o: opener(f) })).sort((a, b) => b.o.t - a.o.t).slice(0, 12);
       const tk = news.length ? news.map(({ f, o }) => `${ago(o.t)}　第${f + 1 > 100 ? 100 : f + 1}層が開いた ── 第${f}層を越えたのは「${esc(o.n)}」${o.x ? '（@' + esc(o.x) + '）' : ''}`).join('　　◆　　') : 'まだだれも第1層を越えていない。最初の屍になれ。';
       $('ticker').innerHTML = `<span>${tk}</span>`;
       $('ticker').firstChild.style.animationDuration = Math.max(14, tk.length * 0.22) + 's';
@@ -109,7 +124,7 @@
   async function floorMenu(f, cleared) {
     const ix = (await getIndex())[f - 1], st = W.stat[f] || {};
     $('fm-title').innerHTML = `第${f}層　${esc(ix.n)}`;
-    const open = W.open[f];
+    const open = opener(f);
     $('fm-body').innerHTML = `<p>死んだ数 <b>${fmt(st.d || 0)}</b>　越えた人 <b>${fmt(st.f || 0)}</b><br>道ができた <b>${Math.min(100, Math.floor(((st.m || 0) / ix.g) * 100))}%</b>${ix.b ? `<br>番人：<b>${esc(ix.b)}</b>` : ''}${open ? `<br>はじめて越えた人：<b>${esc(open.n)}</b>${open.x ? ' @' + esc(open.x) : ''}` : ''}${ME.clears[f] ? `<br>あなたの記録：<b>${(ME.clears[f] / 120).toFixed(1)}秒</b>` : ''}</p>`;
     $('fm-play').textContent = f === W.latest && !W.done ? '挑む（最新の層）' : '練習する';
     $('fm-play').onclick = () => { modal('floormenu', 0); startFloor(f); };
@@ -125,7 +140,7 @@
   SH.S = S;
   async function startFloor(f, opt) {
     opt = opt || {};
-    SND.unlock();
+    SND.unlock(); if (!opt.watch) NET.warm();   // 書きこむ前に、見えないIDをもらっておく
     show('game'); $('loading').classList.add('on');
     let lv, cor;
     try { lv = await getLevel(f); } catch (e) { $('loading').classList.remove('on'); toast('読みこめませんでした', '電波のよいところでもう一度'); show('title'); return; }
@@ -142,7 +157,6 @@
     SND.bgm(lv.theme);
     if (S.watch) { S.run = new SH.Run(lv, cor); S.run.hazard = () => null; S.cam = 0; view.follow(0, 8, true); loadFirst(true); return; }   // 見るときも仕掛けは動かす（自分は描かない・死なない）
     if (f === 1) $('stone').style.display = ''; else $('stone').style.display = 'none';
-    if (S.latest && f > 1) verifyOpen(f - 1);
     spawn(true);
     if (!ME.tut) { ME.tut = 1; saveMe(); openHow(); }
   }
@@ -257,7 +271,7 @@
     view.burst(run.p.x + 0.4, run.p.y + 0.4, '#ffe080', 30);
     const firstHere = !ME.clears[f]; if (!ME.clears[f] || ticks < ME.clears[f]) ME.clears[f] = ticks; ME.best[f] = lv.goal; saveMe();
     const deadN = Math.max((W.stat[f] && W.stat[f].d) || 0, S.cor.size ? [...S.cor.values()].reduce((a, c) => a + c.n, 0) : 0) + S.pending;
-    const wasOpen = !!W.open[f] && !isFake(f);
+    const wasOpen = okFloor(f);
     const isFirst = S.latest && !wasOpen;
     $('cl-big').innerHTML = `<b>${fmt(deadN)}</b>人の屍を超えて<br>第${f}層突破！`;
     $('cl-sub').textContent = `${S.name}　${(ticks / 120).toFixed(1)}秒` + (firstHere ? '' : `（自己ベスト ${(ME.clears[f] / 120).toFixed(1)}秒）`);
@@ -270,9 +284,14 @@
     S.clearInfo = { f, name: S.name, ticks, deadN, isFirst };
     // 記録を送る（はじめてなら層が開く）
     try {
-      const id = await NET.clear(lv, S.name, '', S.rec.str(), S.startCor, ticks, isFirst);
-      S.clearInfo.id = id;
-      if (isFirst && id) { W.open[f] = { t: NET.now(), n: S.name, x: '', id }; computeLatest(); }
+      // まだだれも確かに越えていない層なら、操作の記録ごと残す（だれでも計算しなおして確かめられる）
+      const r = await NET.clear(lv, S.name, '', S.rec.str(), S.startCor, ticks, !wasOpen);
+      const id = r && r.id; S.clearInfo.id = id; S.clearInfo.opened = !!(r && r.opened);
+      if (!wasOpen && id) {
+        // 自分で越えたので、この端末では確かめずに開く（開いた印の時刻を読んで覚える）
+        const o = await NET.rest('sh_open/' + f).catch(() => null);
+        if (o && typeof o.t === 'number') { W.open[f] = o; ME.ok3[f] = { t: o.t, id, n: S.name, x: '' }; saveMe(); computeLatest(); }
+      }
       W.stat[f] = Object.assign({}, W.stat[f], { f: ((W.stat[f] || {}).f || 0) + 1, m: lv.goal });
     } catch (e) { $('cl-msg').textContent = '記録を送れませんでした（電波を確かめてください）'; }
   }
@@ -281,7 +300,7 @@
     if (!x) { toast('IDの形がちがいます', '英数字と _ で15文字まで'); return; }
     NET.store('shiin_xid', x);
     const ci = S.clearInfo; if (!ci || !ci.id) { toast('記録を送っている途中です', '少し待ってもう一度'); return; }
-    try { await NET.setXid(ci.f, ci.id, x, ci.isFirst); if (W.open[ci.f]) W.open[ci.f].x = x; $('cl-first').style.display = 'none'; toast('碑に刻みました', '@' + x); } catch (e) { toast('書きこめませんでした'); }
+    try { await NET.setXid(ci.f, ci.id, x, ci.opened); if (ME.ok3[ci.f] && ME.ok3[ci.f].id === ci.id) { ME.ok3[ci.f].x = x; saveMe(); } if (W.open[ci.f] && W.open[ci.f].id === ci.id) W.open[ci.f].x = x; $('cl-first').style.display = 'none'; toast('碑に刻みました', '@' + x); } catch (e) { toast('書きこめませんでした'); }
   };
   $('cl-xskip').onclick = () => { $('cl-first').style.display = 'none'; toast('「無名」として刻まれます'); };
   $('cl-next').onclick = () => { modal('clearbox', 0); startFloor(Math.min(100, S.lv.f + 1)); };
@@ -363,7 +382,7 @@
         body.innerHTML = `<p class="note">ここに眠る ${fmt(totalDead())} の屍のうち、新しい ${list.length} 人。</p><ol class="names">` + list.map(g => `<li><b>${esc(g.n)}</b><small>第${g.f}層・${ago(g.t)}</small></li>`).join('') + '</ol>';
       } else {
         await refresh(); const idx = await getIndex();
-        const rows = Object.entries(W.open).filter(([f]) => !isFake(f)).map(([f, o]) => ({ f: +f, o })).sort((a, b) => a.f - b.f);
+        const rows = Object.keys(W.open).map(Number).filter(f => okFloor(f)).map(f => ({ f, o: opener(f) })).sort((a, b) => a.f - b.f);
         body.innerHTML = `<p class="note">各層をはじめて越えた者。XのIDは本人の申告で、本当にその人かは確かめていません。</p><ol class="names">` + (rows.length ? rows.map(({ f, o }) => `<li><b>第${f}層</b> ${esc(idx[f - 1].n)}<br>${esc(o.n)}　<span class="x">${o.x ? '@' + esc(o.x) : '無名'}</span><small>${new Date(o.t).toLocaleDateString('ja-JP')}</small></li>`).join('') : '<li>まだだれもいない</li>') + '</ol>';
       }
     } catch (e) { body.innerHTML = '<p>読みこめませんでした</p>'; }
@@ -443,7 +462,6 @@
     if (wf >= 1 && wf <= 100) { ME.tut = 1; startFloor(wf, { watch: true }); }
   }).catch(() => { });
   refresh();
-  NET.warm();
   requestAnimationFrame(loop);
   // 1分ごとに全体を読みなおす（タイトルにいるときだけ）
   setInterval(() => { if ($('title').classList.contains('on') && !document.hidden) refresh(); }, 180000);

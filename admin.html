@@ -29,16 +29,25 @@
 </head>
 <body>
 <h1>シインクラッド 管理</h1>
-<p class="dim">「詰んだ？」の知らせと、各層の様子。消すときは、Firebaseの画面で入れた<b>管理のかぎ</b>が必要です（この画面にだけ入れます。どこにも保存しません）。</p>
+<p class="dim">「詰んだ？」の知らせと、各層の様子。消す・戻すときは、Firebaseの画面で入れた<b>管理のかぎ</b>が必要です（この画面にだけ入れます。かぎ自体はどこにも保存しません。かぎが合うと、この端末の見えないIDが管理人として登録されます）。</p>
 <div class="row"><span>管理のかぎ</span><input id="key" type="password" autocomplete="off" size="24"><button id="reload">読みなおす</button></div>
+<div class="f" id="guard">
+  <h2>守り（ずる対策）</h2>
+  <p class="dim">ゲームは「開いた」の印を信じず、<b>確認済みの層</b>より上は、越えた記録を計算しなおして本物だった層だけを開きます。</p>
+  <div id="g-now">読みこみ中…</div>
+  <div class="row"><span>第</span><input id="g-ck" type="number" min="0" max="100" style="width:70px"><span>層まで確認済みにする</span><button id="g-ckb">決める</button></div>
+  <div class="row"><span>第</span><input id="g-from" type="number" min="2" max="100" style="width:70px"><span>層から上を、まだだれも越えていない状態に戻す</span><label><input type="checkbox" id="g-cells" checked> 屍も消す</label><button class="red" id="g-close">戻す</button></div>
+  <div class="row"><span>第</span><input id="g-vf" type="number" min="1" max="100" style="width:70px"><span>層の越えた記録を確かめる</span><button id="g-vb">確かめる</button></div>
+  <div id="g-out"></div>
+</div>
 <div class="row"><span>層を直接しらべる</span><input id="fno" type="number" min="1" max="100" value="1" style="width:80px"><button id="look">しらべる</button><button id="spec">スペクターで見る</button></div>
 <div id="list"><p>読みこみ中…</p></div>
-<script src="js/firebase-config.js?v=11"></script>
-<script src="js/engine.js?v=11"></script>
-<script src="js/bosses.js?v=11"></script>
-<script src="js/reach.js?v=11"></script>
-<script src="js/render.js?v=11"></script>
-<script src="js/net.js?v=11"></script>
+<script src="js/firebase-config.js?v=12"></script>
+<script src="js/engine.js?v=12"></script>
+<script src="js/bosses.js?v=12"></script>
+<script src="js/reach.js?v=12"></script>
+<script src="js/render.js?v=12"></script>
+<script src="js/net.js?v=12"></script>
 <script>
 (function () {
   const SH = window.SH, NET = SH.NET, T = SH.T, $ = id => document.getElementById(id);
@@ -48,7 +57,10 @@
   function rleDecode(s, n) { const a = new Uint8Array(n); let i = 0, p = 0; while (p < s.length) { const c = s.charCodeAt(p) - 97; p++; let k = ''; while (p < s.length && s[p] >= '0' && s[p] <= '9') k += s[p++]; const m = k ? +k : 1; a.fill(c, i, i + m); i += m; } return a; }
   async function getLevel(f) {
     const ci = Math.ceil(f / 20); if (!chunks[ci]) chunks[ci] = fetch('levels/l' + ci + '.json?v=' + Date.now()).then(r => r.json());
-    const r = (await chunks[ci]).find(x => x.f === f);
+    return decode((await chunks[ci]).find(x => x.f === f));
+  }
+  function decode(r) {
+    const f = r.f;
     return { f, name: r.n, theme: Math.ceil(f / 5) - 1, w: r.w, h: 16, tiles: rleDecode(r.t, r.w * 16), cap: Int8Array.from(r.c.split('').map(Number)), ents: r.e, goal: r.g, boss: r.b, need: r.need, start: { x: 2.1, y: 11 - SH.PHYS.PH } };
   }
   async function load() {
@@ -107,18 +119,73 @@
     const cp = document.createElement('button'); cp.textContent = 'コピー'; cp.onclick = () => { ta.select(); try { navigator.clipboard.writeText(ta.value); } catch (e) { document.execCommand('copy'); } cp.textContent = 'コピーしました'; };
     const del = document.createElement('button'); del.className = 'red'; del.textContent = 'この層の屍をぜんぶ消す';
     del.onclick = async () => {
-      const key = $('key').value.trim(); if (!key) { alert('管理のかぎを入れてください'); return; }
+      if (!$('key').value.trim()) { alert('管理のかぎを入れてください'); return; }
       if (!confirm(`第${f}層の屍（${cor.size}か所・${total}人）をぜんぶ消します。もとにもどせません。よろしいですか？`)) return;
-      try { await NET.resetFloor(f, key); out.insertAdjacentHTML('beforeend', '<p class="ok">消しました。</p>'); setTimeout(load, 800); }
-      catch (e) { const m = String(e && e.message || e); out.insertAdjacentHTML('beforeend', '<p class="bad">消せませんでした（' + (/40[13]/.test(m) || /PERMISSION/i.test(String(e && e.code)) ? 'データベースに断られました。かぎがちがうか、かぎが入っていません' : '通信できませんでした') + '）<br><small>' + esc(m) + '</small></p>'); }
+      try { await login(); await NET.resetFloor(f); out.insertAdjacentHTML('beforeend', '<p class="ok">消しました。</p>'); setTimeout(load, 800); }
+      catch (e) { out.insertAdjacentHTML('beforeend', fail(e)); }
     };
     const sp = document.createElement('button'); sp.textContent = 'スペクターで見る'; sp.onclick = () => window.open('./?watch=' + f, '_blank');
     row.append(sp, cp, del); out.appendChild(row);
   }
-  $('reload').onclick = load;
+  // ---------- 守り ----------
+  function fail(e) {
+    const m = String(e && e.message || e), c = String(e && e.code || '');
+    return '<p class="bad">できませんでした（' + (e && e.badKey ? 'かぎがちがいます。または Firebase の sh_admin/key にかぎが入っていません' : /40[13]/.test(m) || /PERMISSION/i.test(c) ? 'データベースに断られました' : /auth/.test(m) ? '匿名ログインができませんでした（Firebase の Authentication で「匿名」が有効か確かめてください）' : '通信できませんでした') + '）<br><small>' + esc(m) + '</small></p>';
+  }
+  async function login() {
+    const key = $('key').value.trim(); if (!key) { const e = new Error('かぎが空です'); e.badKey = 1; throw e; }
+    try { await NET.adminLogin(key); } catch (e) { if (/PERMISSION/i.test(String(e.code))) e.badKey = 1; throw e; }
+  }
+  let HIST = null;
+  async function variants(f) { try { if (!HIST) HIST = fetch('levels/hist.json?v=' + Date.now()).then(r => r.ok ? r.json() : {}); const h = await HIST; return (h[f] || []).map(r => decode(r)); } catch (e) { return []; } }
+  async function guard() {
+    const box = $('g-now'); box.textContent = '読みこみ中…';
+    try {
+      const o = await NET.overview(), ck = o.ckpt == null ? 60 : o.ckpt;
+      const fl = Object.keys(o.open).map(Number).sort((a, b) => a - b);
+      let L = 1; while (L <= 100 && o.open[L]) L++;
+      const above = fl.filter(f => f > ck);
+      box.innerHTML = `<p>確認済み：<b>第${ck}層まで</b>${o.ckpt == null ? '（まだ決めていないので、ゲームの中の値 60 を使っています）' : ''}<br>「開いた」の印がある層：${fl.length ? '第' + fl[0] + '〜' + fl[fl.length - 1] + '層（' + fl.length + 'こ）' : 'なし'}　印のとおりなら最新は第${Math.min(100, L)}層<br>確認済みより上で印がある層（ゲームが計算して確かめる）：${above.length ? above.map(f => '第' + f + '層').join('、') : 'なし'}</p>`;
+      if ($('g-ck').value === '') $('g-ck').value = ck;
+      if ($('g-from').value === '') $('g-from').value = ck + 1;
+      if ($('g-vf').value === '') $('g-vf').value = Math.min(100, ck + 1);
+    } catch (e) { box.innerHTML = fail(e); }
+  }
+  $('g-ckb').onclick = async () => {
+    const f = Math.max(0, Math.min(100, Math.floor(+$('g-ck').value || 0)));
+    if (!confirm(`第${f}層までを「本物」として、ゲームが確かめずに開くようにします。よろしいですか？`)) return;
+    try { await login(); await NET.setCkpt(f); $('g-out').innerHTML = `<p class="ok">第${f}層まで確認済みにしました。</p>`; guard(); } catch (e) { $('g-out').innerHTML = fail(e); }
+  };
+  $('g-close').onclick = async () => {
+    const f = Math.max(2, Math.min(100, Math.floor(+$('g-from').value || 0))), cells = $('g-cells').checked;
+    if (!confirm(`第${f}層〜第100層を、まだだれも越えていない状態に戻します。\n越えた記録・開いた印・死んだ数・知らせ・屍の碑${cells ? '・屍' : ''}を消します。もとにもどせません。よろしいですか？`)) return;
+    $('g-out').innerHTML = '<p>消しています…</p>';
+    try { await login(); const n = await NET.closeFrom(f, cells); $('g-out').innerHTML = `<p class="ok">第${f}層から上を戻しました（屍の碑から ${n} 人を消しました）。いまの最新は第${f}層です。</p>`; guard(); load(); } catch (e) { $('g-out').innerHTML = fail(e); }
+  };
+  $('g-vb').onclick = async () => {
+    const f = Math.max(1, Math.min(100, Math.floor(+$('g-vf').value || 1))), out = $('g-out');
+    out.innerHTML = '<p>確かめています…</p>';
+    try {
+      const lv = await getLevel(f), cells = await NET.loadCells(lv), vars = await variants(f);
+      const [all, rs, op] = await Promise.all([NET.rest('sh_clear/' + f), NET.rest('sh_reset/' + f + '/t').catch(() => null), NET.rest('sh_open/' + f)]);
+      const list = Object.entries(all || {}).map(([id, c]) => Object.assign({ id }, c)).sort((a, b) => (a.t || 0) - (b.t || 0));
+      const good = [], bad = [];
+      for (const c of list) { await new Promise(r => setTimeout(r, 0)); let ok = NET.verifyClear(lv, c, cells, rs); if (!ok) for (const v of vars) if (NET.verifyClear(v, c, NET.sanitize(v, lv._raw), rs)) { ok = true; break; } (ok ? good : bad).push(c); }
+      const openBad = op && !good.some(c => c.id === op.id);
+      const row = c => `<li>${esc(c.n)}${c.x ? ' @' + esc(c.x) : ''}　${day(c.t)}　${((c.k || 0) / 120).toFixed(1)}秒${op && op.id === c.id ? '　<b>（開いた印）</b>' : ''}</li>`;
+      out.innerHTML = `<p>第${f}層：越えた記録 ${list.length} こ　<span class="ok">本物 ${good.length}</span>　<span class="bad">にせ ${bad.length}</span>　開いた印：${op ? (openBad ? '<span class="bad">にせの記録をさしている</span>' : '<span class="ok">本物</span>') : 'なし'}</p>` +
+        (good.length ? '<p class="ok">本物</p><ol>' + good.slice(0, 20).map(row).join('') + '</ol>' : '') + (bad.length ? '<p class="bad">にせ（計算しなおすとゴールできない）</p><ol>' + bad.slice(0, 50).map(row).join('') + '</ol>' : '');
+      if (bad.length || openBad) {
+        const b = document.createElement('button'); b.className = 'red'; b.textContent = `にせ記録を消す（${bad.length}こ${openBad ? '・開いた印も' : ''}）`;
+        b.onclick = async () => { if (!confirm('にせ記録を消します。よろしいですか？')) return; try { await login(); await NET.purge(f, bad.map(c => c.id), openBad); out.insertAdjacentHTML('beforeend', '<p class="ok">消しました。</p>'); guard(); } catch (e) { out.insertAdjacentHTML('beforeend', fail(e)); } };
+        out.appendChild(b);
+      }
+    } catch (e) { out.innerHTML = fail(e); }
+  };
+  $('reload').onclick = () => { load(); guard(); };
   $('spec').onclick = () => { const f = Math.max(1, Math.min(100, +$('fno').value || 1)); window.open('./?watch=' + f, '_blank'); };
   $('look').onclick = () => { const f = Math.max(1, Math.min(100, +$('fno').value || 1)); const el = card(f, {}, {}, false); $('list').prepend(el); el.querySelector('.look').click(); };
-  load();
+  load(); guard();
 })();
 </script>
 </body>
