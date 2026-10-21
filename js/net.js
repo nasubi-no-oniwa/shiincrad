@@ -73,8 +73,9 @@
   async function restWrite(method, path, val) {
     for (let i = 0; ; i++) {
       const t = await N.token(i > 0);
-      const r = await Promise.race([fetch(DBURL() + '/' + path + '.json?auth=' + encodeURIComponent(t), { method, body: JSON.stringify(val), cache: 'no-store' }), late(12000)]);
-      if (r.ok) return r.json();
+      // print=silent：書いた中身を送り返してもらわない（ダウンロード量を減らす）
+      const r = await Promise.race([fetch(DBURL() + '/' + path + '.json?print=silent&auth=' + encodeURIComponent(t), { method, body: JSON.stringify(val), cache: 'no-store' }), late(12000)]);
+      if (r.ok) return null;
       const txt = await r.text().catch(() => '');
       // 名乗りの期限切れ → 1回だけもらいなおす
       if (i === 0 && r.status === 401 && /token|auth/i.test(txt) && !/permission/i.test(txt)) continue;
@@ -110,7 +111,7 @@
   async function tx(build, tries) {
     for (let i = 0; i < (tries || 8); i++) {
       const inc = i % 2 === 0 ? incPref : !incPref;
-      const up = await build(inc); if (!up) return null;
+      const up = await build(inc, i); if (!up) return null;
       try { await update(up.w); incPref = inc; return up.r; }
       catch (e) { if (!perm(e) && !(e && e.code === 'BAD_REQUEST')) throw e; await sleep(250 + Math.random() * 500 + i * 150); }
     }
@@ -248,8 +249,9 @@
   };
   async function trust(lv, raw, ms) {
     const f = lv.f, until = Date.now() + (ms || 6000);
-    const [rm, rs] = await Promise.all([rest('sh_rm/' + f + '/t').catch(() => null), rest('sh_reset/' + f + '/t').catch(() => null)]);
-    const key = (rm || 0) + '_' + (rs || 0);
+    // 屍を取り除いた・層を消した合図は、5分に1回だけ見る
+    if (!lv._rmAt || Date.now() - lv._rmAt > 300000) { const [rm, rs] = await Promise.all([rest('sh_rm/' + f + '/t').catch(() => null), rest('sh_reset/' + f + '/t').catch(() => null)]); lv._rmKey = (rm || 0) + '_' + (rs || 0); lv._rmAt = Date.now(); }
+    const key = lv._rmKey;
     let st = lv._dv;
     if (!st || st.key !== key) { const c = DV()[f]; st = c && c.key === key ? { key, t: c.t || 0, ti: c.ti || [], P: new Set(c.P || []), cnt: c.cnt || {}, bad: c.bad || {}, far: c.far || 0 } : { key, t: 0, ti: [], P: new Set(), cnt: {}, bad: {}, far: 0 }; lv._dv = st; }
     // 新しい記録（前に確かめた所より後）
@@ -309,13 +311,17 @@
   // =============================================
   //  死んだ：屍を＋1、死んだ数、いちばん先、屍の碑
   // =============================================
-  N.died = function (lv, place, name, maxX, rec, cor, ticks) {
+  N.died = function (lv, place, name, maxX, rec, cor, ticks, knownM) {
     const f = lv.f, mx = Math.min(lv.goal, Math.floor(maxX)), cp = place && !place.vanish ? 'sh_cells/' + f + '/' + place.x + '_' + place.y : null;
-    return inLane('c', 800, () => tx(async inc => {
+    return inLane('c', 800, () => tx(async (inc, i) => {
       await N.token();
-      const [cur, st] = await Promise.all([cp && !inc ? rest(cp) : null, rest('sh_stat/' + f)]);
+      // ＋1をデータベース側でするときは、何も読まずに書く（通信を減らす）
+      const [cur, st] = inc ? [null, null] : await Promise.all([cp ? rest(cp) : null, rest('sh_stat/' + f)]);
       const w = { ['sh_u/' + N.uid + '/c']: SV, ['sh_stat/' + f + '/d']: inc ? INC : ((st && st.d) || 0) + 1, ['sh_grave/' + pid()]: { n: name, f, t: SV } };
-      if (!(st && st.m >= mx)) w['sh_stat/' + f + '/m'] = mx;
+      N.mHint = N.mHint || {};
+      if (i >= 1 && !st) N.mHint[f] = Math.max(N.mHint[f] || 0, mx);   // 断られた＝本当の「いちばん先」はもっと奥。次からはここまで書かない
+      const km = st ? (st.m || 0) : Math.max(+knownM || 0, N.mHint[f] || 0);
+      if (mx > km && (i < 2 || st)) w['sh_stat/' + f + '/m'] = mx;   // 手元の数字が古くて断られたら、2回目からは外す
       // 屍を置く：だれがどこに置いたかの記録（sh_dlog）をいっしょに書く
       let nv = null;
       if (cp) { const g = pid(); nv = { n: inc ? INC : ((cur && cur.n) || 0) + 1, l: name, t: SV, g }; w[cp] = nv; w['sh_dlog/' + f + '/' + g] = { p: place.x + '_' + place.y, u: N.uid, t: SV, v: 1 }; w['sh_drec/' + f + '/' + g] = { r: String(rec || '').slice(0, 20000), c: String(cor || '').slice(0, 30000), k: Math.max(1, ticks | 0) }; }
@@ -332,10 +338,10 @@
     const f = lv.f;
     return inLane('k', 4300, () => tx(async inc => {
       await N.token();
-      const [st, op, wn] = await Promise.all([rest('sh_stat/' + f), full ? rest('sh_open/' + f) : null, full ? restMe('sh_u/' + N.uid + '/w/' + f).catch(() => null) : null]);
+      const [st, op, wn] = await Promise.all([inc ? null : rest('sh_stat/' + f), full ? rest('sh_open/' + f) : null, full ? restMe('sh_u/' + N.uid + '/w/' + f).catch(() => null) : null]);   // ＋1をデータベース側でするときは、数字を読まない
       if (+wn >= 3) full = false;   // 1つの層で越えた記録を出せるのは3回まで
       const w = { ['sh_u/' + N.uid + '/k']: SV, ['sh_stat/' + f + '/f']: inc ? INC : ((st && st.f) || 0) + 1 };
-      if (!(st && st.m >= lv.goal)) w['sh_stat/' + f + '/m'] = lv.goal;
+      if (inc || !(st && st.m >= lv.goal)) w['sh_stat/' + f + '/m'] = lv.goal;   // ゴールは一番奥なので、いつ書いても前より小さくならない
       let id = null, opened = false;
       if (full) {
         id = pid(); w['sh_clear/' + f + '/' + id] = { n: name, x: xid || '', t: SV, r: recStr, c: corStr, k: ticks, u: N.uid }; w['sh_u/' + N.uid + '/w/' + f] = (+wn || 0) + 1;

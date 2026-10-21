@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '19';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '20';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -87,10 +87,13 @@
   // 最新の層の「道ができた」を出すために、その層の屍を裏で確かめておく（遊ぶときにも使うので無駄にならない）
   let farP = null;
   function loadFar() {
-    const f = W.latest; if (farP || W.done || (NET.far && NET.far[f] !== undefined && NET.far['_t' + f] > Date.now() - 60000)) return;
+    const f = W.latest; if (farP || W.done || (NET.far && NET.far[f] !== undefined && NET.far['_t' + f] > Date.now() - 600000)) return;
     farP = getLevel(f).then(lv => NET.loadCells(lv)).then(() => { NET.far['_t' + f] = Date.now(); title.paint(); }).catch(() => { }).finally(() => { farP = null; });
   }
-  async function refresh() {
+  let refAt = 0;
+  async function refresh(force) {
+    if (!force && W.loaded && Date.now() - refAt < 60000) { computeLatest(); title.paint(); return; }
+    refAt = Date.now();
     try { const o = await NET.overview(); W.open = o.open; W.stat = o.stat; W.ckpt = o.ckpt == null ? CK0 : o.ckpt; W.loaded = true; } catch (e) { W.loaded = false; }
     computeLatest(); title.paint();
     if (W.loaded) verifyChain().then(() => { title.paint(); loadFar(); }).catch(() => { });
@@ -277,14 +280,15 @@
     const mx = run.p.maxX;
     const fl = S.lv.f;
     const myKey = !pl.vanish ? pl.y * S.lv.w + pl.x : -1, myCor = S.cor;
-    NET.died(S.lv, pl, name, mx, S.rec.str(), S.startCor, run.t).then(() => { S.pending = Math.max(0, S.pending - 1); const st = W.stat[fl] = W.stat[fl] || {}; st.d = (st.d || 0) + 1; st.m = Math.max(st.m || 0, Math.floor(mx)); updateHud(); refreshStat(); }).catch(() => { S.pending = Math.max(0, S.pending - 1); const c = myKey >= 0 && myCor.get(myKey); if (c && c.n <= 1) myCor.delete(myKey); });   // 送れなかった屍は、この端末でも消す（あとの挑戦の確かめが通らなくなるので）
+    NET.died(S.lv, pl, name, mx, S.rec.str(), S.startCor, run.t, (W.stat[S.lv.f] || {}).m).then(() => { S.pending = Math.max(0, S.pending - 1); const st = W.stat[fl] = W.stat[fl] || {}; st.d = (st.d || 0) + 1; st.m = Math.max(st.m || 0, Math.floor(mx)); updateHud(); refreshStat(); }).catch(() => { S.pending = Math.max(0, S.pending - 1); const c = myKey >= 0 && myCor.get(myKey); if (c && c.n <= 1) myCor.delete(myKey); });   // 送れなかった屍は、この端末でも消す（あとの挑戦の確かめが通らなくなるので）
     updateHud();
     if (S.deathsHere % 15 === 0 && S.latest) setTimeout(() => autoStuck(false), 1200);
-    const lvNow = S.lv; S.syncP = NET.syncCells(lvNow, S.cor).then(m => { if (m && S.lv === lvNow) S.nextCor = m; }).catch(() => { });
+    // ほかの人の屍の読みなおしは、20秒に1回まで（通信を減らす。自分の屍はすぐ足場になる）
+    const lvNow = S.lv; if (!S.syncAt || Date.now() - S.syncAt > 20000) { S.syncAt = Date.now(); S.syncP = NET.syncCells(lvNow, S.cor).then(m => { if (m && S.lv === lvNow) S.nextCor = m; }).catch(() => { }); }
     setTimeout(() => { if (S.run === run && $('game').classList.contains('on')) spawn(false); }, 1050);
   }
   let statT = 0;
-  function refreshStat() { if (Date.now() - statT < 30000) return; statT = Date.now(); NET.rest('sh_stat/' + S.lv.f).then(v => { if (v) { W.stat[S.lv.f] = v; updateHud(); } }).catch(() => { }); }
+  function refreshStat() { if (Date.now() - statT < 120000) return; statT = Date.now(); NET.rest('sh_stat/' + S.lv.f).then(v => { if (v) { W.stat[S.lv.f] = v; updateHud(); } }).catch(() => { }); }
   // ---------- 越えた ----------
   async function onClear() {
     const run = S.run, lv = S.lv, f = lv.f, ticks = run.t;
@@ -341,7 +345,7 @@
     const ci = S.clearInfo;
     if (ci && !ci.id && ci.failed && ci.resend) {
       toast('記録をもう一度送っています…');
-      try { const r = await ci.resend(); if (!r || !r.id) throw new Error('no id'); ci.id = r.id; ci.opened = !!r.opened; ci.failed = false; $('cl-msg').textContent = ci.opened ? (ci.f === 100 ? 'シインクラッド、完全制覇。' : `第${ci.f + 1}層が、いま開いた。`) : 'ひと足先に越えた人がいました。あなたの記録も残りました'; refresh(); }
+      try { const r = await ci.resend(); if (!r || !r.id) throw new Error('no id'); ci.id = r.id; ci.opened = !!r.opened; ci.failed = false; $('cl-msg').textContent = ci.opened ? (ci.f === 100 ? 'シインクラッド、完全制覇。' : `第${ci.f + 1}層が、いま開いた。`) : 'ひと足先に越えた人がいました。あなたの記録も残りました'; refresh(true); }
       catch (e) { toast('送れませんでした', '混みあっています。少し待ってもう一度'); return; }
     }
     if (!ci || !ci.id) { toast('記録を送っている途中です', '少し待ってもう一度'); return; }
