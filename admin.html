@@ -43,12 +43,12 @@
 </div>
 <div class="row"><span>層を直接しらべる</span><input id="fno" type="number" min="1" max="100" value="1" style="width:80px"><button id="look">しらべる</button><button id="spec">スペクターで見る</button></div>
 <div id="list"><p>読みこみ中…</p></div>
-<script src="js/firebase-config.js?v=14"></script>
-<script src="js/engine.js?v=14"></script>
-<script src="js/bosses.js?v=14"></script>
-<script src="js/reach.js?v=14"></script>
-<script src="js/render.js?v=14"></script>
-<script src="js/net.js?v=14"></script>
+<script src="js/firebase-config.js?v=15"></script>
+<script src="js/engine.js?v=15"></script>
+<script src="js/bosses.js?v=15"></script>
+<script src="js/reach.js?v=15"></script>
+<script src="js/render.js?v=15"></script>
+<script src="js/net.js?v=15"></script>
 <script>
 (function () {
   const SH = window.SH, NET = SH.NET, T = SH.T, $ = id => document.getElementById(id);
@@ -179,7 +179,7 @@
         (good.length ? '<p class="ok">本物</p><ol>' + good.slice(0, 20).map(row).join('') + '</ol>' : '') + (bad.length ? '<p class="bad">にせ（計算しなおすとゴールできない）</p><ol>' + bad.slice(0, 50).map(row).join('') + '</ol>' : '');
       if (bad.length || openBad) {
         const b = document.createElement('button'); b.className = 'red'; b.textContent = `にせ記録を消す（${bad.length}こ${openBad ? '・開いた印も' : ''}）`;
-        b.onclick = async () => { if (!confirm('にせ記録を消します。よろしいですか？')) return; try { await login(); await NET.purge(f, bad.map(c => c.id), openBad); out.insertAdjacentHTML('beforeend', '<p class="ok">消しました。</p>'); guard(); } catch (e) { out.insertAdjacentHTML('beforeend', fail(e)); } };
+        b.onclick = async () => { if (!confirm('にせ記録を消します。よろしいですか？')) return; try { await login(); await NET.purge(f, bad.map(c => c.id), openBad, good.length ? 0 : lv.goal); out.insertAdjacentHTML('beforeend', '<p class="ok">消しました。</p>'); guard(); } catch (e) { out.insertAdjacentHTML('beforeend', fail(e)); } };
         out.appendChild(b);
       }
     } catch (e) { out.innerHTML = fail(e); }

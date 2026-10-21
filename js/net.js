@@ -347,9 +347,13 @@
     return Object.keys(dec).length;
   };
   // にせの越えた記録を消す（ids）。開いた印がにせなら、それも
-  N.purge = async function (f, ids, openToo) {
+  //  数字も直す：越えた人はにせの分だけ減らす。本物がない（開いた印もにせ）なら、いちばん先はゴールの手前まで
+  N.purge = async function (f, ids, openToo, goal) {
     const w = {}; for (const id of ids) w['sh_clear/' + f + '/' + id] = null;
     if (openToo) w['sh_open/' + f] = null;
+    const st = await rest('sh_stat/' + f).catch(() => null);
+    if (st && typeof st.f === 'number' && ids.length) w['sh_stat/' + f + '/f'] = Math.max(0, st.f - ids.length);
+    if (st && openToo && goal && typeof st.m === 'number' && st.m >= goal) w['sh_stat/' + f + '/m'] = goal - 1;
     if (Object.keys(w).length) await update(w);
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '14';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '15';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -49,6 +49,9 @@
   const okFloor = f => { const o = W.open[f]; if (!o) return false; if (f <= W.ckpt) return true; const v = ME.ok3[f]; return !!(v && v.t === o.t); };
   // その層をはじめて越えた人（確かめた記録の名前。管理人が確かめた層は印のまま）
   const opener = f => { const o = W.open[f]; if (!o || !okFloor(f)) return null; if (f <= W.ckpt) return o; const v = ME.ok3[f]; return { t: o.t, n: v.n, x: o.id === v.id && o.x ? o.x : v.x, id: v.id }; };
+  // 見せる数字：「いちばん先」と「越えた人」はにせのクリアで書きかえられるので、本当に越えたと確かめた層だけそのまま見せる
+  //  確かめていない層：いちばん先はゴールの手前まで（99%まで）、越えた人は0
+  const shownStat = (f, g) => { const st = W.stat[f] || {}; if (okFloor(f)) return st; return Object.assign({}, st, { m: Math.min(st.m || 0, Math.max(0, (g || 1) - 1)), f: 0 }); };
   function computeLatest() {
     let L = 1; while (L <= 100 && okFloor(L)) L++;
     W.done = L > 100; W.latest = Math.min(100, L); return W.latest;
@@ -94,7 +97,7 @@
       const L = W.latest, ix = INDEX && INDEX[L - 1];
       $('t-latest').innerHTML = W.done ? '全100層　制覇' : `第<b>${L}</b>層　${esc(ix ? ix.n : '')}`;
       $('t-total').textContent = fmt(totalDead());
-      const st = W.stat[L] || {}, g = ix ? ix.g : 0;
+      const g = ix ? ix.g : 0, st = shownStat(L, g);
       $('t-road').textContent = g ? Math.min(100, Math.floor(((st.m || 0) / g) * 100)) + '%' : '0%';
       $('t-ldead').textContent = fmt(st.d || 0);
       $('go-latest').textContent = W.done ? '頂をながめる' : `第${L}層に挑む`;
@@ -123,7 +126,7 @@
     const cur = box.querySelector('.now'); if (cur) cur.scrollIntoView({ block: 'center' });
   }
   async function floorMenu(f, cleared) {
-    const ix = (await getIndex())[f - 1], st = W.stat[f] || {};
+    const ix = (await getIndex())[f - 1], st = shownStat(f, ix.g);
     $('fm-title').innerHTML = `第${f}層　${esc(ix.n)}`;
     const open = opener(f);
     $('fm-body').innerHTML = `<p>死んだ数 <b>${fmt(st.d || 0)}</b>　越えた人 <b>${fmt(st.f || 0)}</b><br>道ができた <b>${Math.min(100, Math.floor(((st.m || 0) / ix.g) * 100))}%</b>${ix.b ? `<br>番人：<b>${esc(ix.b)}</b>` : ''}${open ? `<br>はじめて越えた人：<b>${esc(open.n)}</b>${open.x ? ' @' + esc(open.x) : ''}` : ''}${ME.clears[f] ? `<br>あなたの記録：<b>${(ME.clears[f] / 120).toFixed(1)}秒</b>` : ''}</p>`;
@@ -181,7 +184,7 @@
     if (!first) view.ring(S.run.p.x + 0.4, S.run.p.y + 0.4, '#fff');
   }
   function updateHud() {
-    const st = W.stat[S.lv.f] || {};
+    const st = shownStat(S.lv.f, S.lv.goal);
     $('h-dead').textContent = fmt(Math.max(st.d || 0, 0) + S.pending);
     const g = S.lv.goal, far = Math.max(st.m || 0, S.best);
     $('h-prog').style.width = Math.min(100, (far / g) * 100) + '%';
