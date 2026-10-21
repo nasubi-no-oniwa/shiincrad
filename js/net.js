@@ -74,7 +74,7 @@
       const txt = await r.text().catch(() => '');
       // 名乗りの期限切れ → 1回だけもらいなおす
       if (i === 0 && r.status === 401 && /token|auth/i.test(txt) && !/permission/i.test(txt)) continue;
-      const e = new Error('http ' + r.status); if (r.status === 401 || r.status === 403) e.code = 'PERMISSION_DENIED'; throw e;
+      const e = new Error('http ' + r.status); if (r.status === 401 || r.status === 403) e.code = 'PERMISSION_DENIED'; else if (r.status === 400) e.code = 'BAD_REQUEST'; throw e;
     }
   }
   N.rest = rest;
@@ -98,12 +98,17 @@
   const AZ = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   const pid = () => { let s = Date.now().toString(36); for (let i = 0; i < 11; i++) s += AZ[Math.floor(Math.random() * AZ.length)]; return s; };
   N.pid = pid;
+  // 数を＋1する：データベース側で足してもらう（大勢が同時に書いてもぶつからない）
+  //  使えないときに備えて、断られたら次は「読んだ数＋1」の書き方でためす（うまくいった書き方を覚える）
+  let incPref = true;
+  const INC = { '.sv': { increment: 1 } };
   // 読んで→まとめて書く。ルールに断られたら（ほかの人と同時・間をあけすぎず）、少し待って読みなおしてやりなおす
   async function tx(build, tries) {
     for (let i = 0; i < (tries || 8); i++) {
-      const up = await build(); if (!up) return null;
-      try { await update(up.w); return up.r; }
-      catch (e) { if (!perm(e)) throw e; await sleep(250 + Math.random() * 500 + i * 150); }
+      const inc = i % 2 === 0 ? incPref : !incPref;
+      const up = await build(inc); if (!up) return null;
+      try { await update(up.w); incPref = inc; return up.r; }
+      catch (e) { if (!perm(e) && !(e && e.code === 'BAD_REQUEST')) throw e; await sleep(250 + Math.random() * 500 + i * 150); }
     }
     throw new Error('混みあっています');
   }
@@ -190,14 +195,14 @@
   // =============================================
   N.died = function (lv, place, name, maxX) {
     const f = lv.f, mx = Math.min(lv.goal, Math.floor(maxX)), cp = place && !place.vanish ? 'sh_cells/' + f + '/' + place.x + '_' + place.y : null;
-    return inLane('c', 800, () => tx(async () => {
+    return inLane('c', 800, () => tx(async inc => {
       await N.token();
-      const [cur, st] = await Promise.all([cp ? rest(cp) : null, rest('sh_stat/' + f)]);
-      const w = { ['sh_u/' + N.uid + '/c']: SV, ['sh_stat/' + f + '/d']: ((st && st.d) || 0) + 1, ['sh_grave/' + pid()]: { n: name, f, t: SV } };
+      const [cur, st] = await Promise.all([cp && !inc ? rest(cp) : null, rest('sh_stat/' + f)]);
+      const w = { ['sh_u/' + N.uid + '/c']: SV, ['sh_stat/' + f + '/d']: inc ? INC : ((st && st.d) || 0) + 1, ['sh_grave/' + pid()]: { n: name, f, t: SV } };
       if (!(st && st.m >= mx)) w['sh_stat/' + f + '/m'] = mx;
       // 屍を置く：だれがどこに置いたかの記録（sh_dlog）をいっしょに書く
       let nv = null;
-      if (cp) { const g = pid(); nv = { n: ((cur && cur.n) || 0) + 1, l: name, t: SV, g }; w[cp] = nv; w['sh_dlog/' + f + '/' + g] = { p: place.x + '_' + place.y, u: N.uid, t: SV }; }
+      if (cp) { const g = pid(); nv = { n: inc ? INC : ((cur && cur.n) || 0) + 1, l: name, t: SV, g }; w[cp] = nv; w['sh_dlog/' + f + '/' + g] = { p: place.x + '_' + place.y, u: N.uid, t: SV }; }
       return { w, r: nv };
     }));
   };
@@ -209,11 +214,11 @@
   // full：操作の記録ごと残す（まだだれも確かに越えていない層のとき）。でなければ数だけ
   N.clear = function (lv, name, xid, recStr, corStr, ticks, full) {
     const f = lv.f;
-    return inLane('k', 4300, () => tx(async () => {
+    return inLane('k', 4300, () => tx(async inc => {
       await N.token();
       const [st, op, wn] = await Promise.all([rest('sh_stat/' + f), full ? rest('sh_open/' + f) : null, full ? restMe('sh_u/' + N.uid + '/w/' + f).catch(() => null) : null]);
       if (+wn >= 3) full = false;   // 1つの層で越えた記録を出せるのは3回まで
-      const w = { ['sh_u/' + N.uid + '/k']: SV, ['sh_stat/' + f + '/f']: ((st && st.f) || 0) + 1 };
+      const w = { ['sh_u/' + N.uid + '/k']: SV, ['sh_stat/' + f + '/f']: inc ? INC : ((st && st.f) || 0) + 1 };
       if (!(st && st.m >= lv.goal)) w['sh_stat/' + f + '/m'] = lv.goal;
       let id = null, opened = false;
       if (full) {

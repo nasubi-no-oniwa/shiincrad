@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '15';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '17';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -48,7 +48,8 @@
   const W = { open: {}, stat: {}, latest: 1, loaded: false, ckpt: CK0 };
   const okFloor = f => { const o = W.open[f]; if (!o) return false; if (f <= W.ckpt) return true; const v = ME.ok3[f]; return !!(v && v.t === o.t); };
   // その層をはじめて越えた人（確かめた記録の名前。管理人が確かめた層は印のまま）
-  const opener = f => { const o = W.open[f]; if (!o || !okFloor(f)) return null; if (f <= W.ckpt) return o; const v = ME.ok3[f]; return { t: o.t, n: v.n, x: o.id === v.id && o.x ? o.x : v.x, id: v.id }; };
+  const opener = f => { const o = W.open[f]; if (!o || !okFloor(f)) return null; if (f <= W.ckpt) return o; const v = ME.ok3[f]; if (v.mine) return { t: o.t, n: NET.cleanName(o.n) || '名無し', x: NET.cleanX(o.x), id: o.id };   // 確かめ中：ひとまず開いた印の人
+    return { t: o.t, n: v.n, x: o.id === v.id && o.x ? o.x : v.x, id: v.id }; };
   // 見せる数字：「いちばん先」と「越えた人」はにせのクリアで書きかえられるので、本当に越えたと確かめた層だけそのまま見せる
   //  確かめていない層：いちばん先はゴールの手前まで（99%まで）、越えた人は0
   const shownStat = (f, g) => { const st = W.stat[f] || {}; if (okFloor(f)) return st; return Object.assign({}, st, { m: Math.min(st.m || 0, Math.max(0, (g || 1) - 1)), f: 0 }); };
@@ -281,11 +282,11 @@
     const isFirst = S.latest && !wasOpen;
     $('cl-big').innerHTML = `<b>${fmt(deadN)}</b>人の屍を超えて<br>第${f}層突破！`;
     $('cl-sub').textContent = `${S.name}　${(ticks / 120).toFixed(1)}秒` + (firstHere ? '' : `（自己ベスト ${(ME.clears[f] / 120).toFixed(1)}秒）`);
-    $('cl-first').style.display = isFirst ? '' : 'none';
+    $('cl-first').style.display = 'none';   // 記録を送って、本当に一番乗りだったときに出す
     $('cl-xid').value = NET.store('shiin_xid') || '';
     $('cl-next').style.display = f < 100 ? '' : 'none';
     $('cl-next').textContent = `第${Math.min(100, f + 1)}層へ`;
-    $('cl-msg').textContent = isFirst ? (f === 100 ? 'シインクラッド、完全制覇。' : `第${f + 1}層が、いま開いた。`) : '';
+    $('cl-msg').textContent = isFirst ? '記録を送っています…' : '';
     modal('clearbox', 1);
     S.clearInfo = { f, name: S.name, ticks, deadN, isFirst };
     // 記録を送る（はじめてなら層が開く）
@@ -293,19 +294,43 @@
       // まだだれも確かに越えていない層なら、操作の記録ごと残す（だれでも計算しなおして確かめられる）
       const r = await NET.clear(lv, S.name, '', S.rec.str(), S.startCor, ticks, !wasOpen);
       const id = r && r.id; S.clearInfo.id = id; S.clearInfo.opened = !!(r && r.opened);
+      if (isFirst) {
+        if (r && r.opened) { $('cl-first').style.display = ''; $('cl-msg').textContent = f === 100 ? 'シインクラッド、完全制覇。' : `第${f + 1}層が、いま開いた。`; }
+        else $('cl-msg').textContent = id ? 'ひと足先に越えた人がいました。あなたの記録も残りました' : '';
+      }
       if (!wasOpen && id) {
         // 自分で越えたので、この端末では確かめずに開く（開いた印の時刻を読んで覚える）
         const o = await NET.rest('sh_open/' + f).catch(() => null);
-        if (o && typeof o.t === 'number') { W.open[f] = o; ME.ok3[f] = { t: o.t, id, n: S.name, x: '' }; saveMe(); computeLatest(); }
+        if (o && typeof o.t === 'number') {
+          W.open[f] = o;
+          if (r.opened) ME.ok3[f] = { t: o.t, id, n: S.name, x: '' };
+          else {
+            // ほかの人が先に越えていた：層は開く（自分の記録が本物なので）。碑の名前は、いちばん早い本物の記録を確かめてから
+            ME.ok3[f] = { t: o.t, id, n: S.name, x: '', mine: 1 };
+            const lvF = lv; NET.loadCells(lvF).then(cells => NET.firstClear(lvF, cells, [])).then(c => { if (c && ME.ok3[f] && ME.ok3[f].t === o.t) { ME.ok3[f] = { t: o.t, id: c.id, n: NET.cleanName(c.n) || '名無し', x: NET.cleanX(c.x) }; saveMe(); title.paint(); } }).catch(() => { });
+          }
+          saveMe(); computeLatest();
+        }
       }
       W.stat[f] = Object.assign({}, W.stat[f], { f: ((W.stat[f] || {}).f || 0) + 1, m: lv.goal });
-    } catch (e) { $('cl-msg').textContent = '記録を送れませんでした（電波を確かめてください）'; }
+    } catch (e) {
+      $('cl-msg').textContent = '記録を送れませんでした（混みあっているか、電波が弱いです）。「刻む」を押すと、もう一度送ります';
+      const recStr = S.rec.str(), startCor = S.startCor, ci = S.clearInfo;
+      ci.failed = true; ci.resend = () => NET.clear(lv, ci.name, '', recStr, startCor, ticks, !wasOpen);
+      if (isFirst) $('cl-first').style.display = '';   // もう一度送るための「刻む」
+    }
   }
   $('cl-xsave').onclick = async () => {
     const x = NET.cleanX($('cl-xid').value);
     if (!x) { toast('IDの形がちがいます', '英数字と _ で15文字まで'); return; }
     NET.store('shiin_xid', x);
-    const ci = S.clearInfo; if (!ci || !ci.id) { toast('記録を送っている途中です', '少し待ってもう一度'); return; }
+    const ci = S.clearInfo;
+    if (ci && !ci.id && ci.failed && ci.resend) {
+      toast('記録をもう一度送っています…');
+      try { const r = await ci.resend(); if (!r || !r.id) throw new Error('no id'); ci.id = r.id; ci.opened = !!r.opened; ci.failed = false; $('cl-msg').textContent = ci.opened ? (ci.f === 100 ? 'シインクラッド、完全制覇。' : `第${ci.f + 1}層が、いま開いた。`) : 'ひと足先に越えた人がいました。あなたの記録も残りました'; refresh(); }
+      catch (e) { toast('送れませんでした', '混みあっています。少し待ってもう一度'); return; }
+    }
+    if (!ci || !ci.id) { toast('記録を送っている途中です', '少し待ってもう一度'); return; }
     try { await NET.setXid(ci.f, ci.id, x, ci.opened); if (ME.ok3[ci.f] && ME.ok3[ci.f].id === ci.id) { ME.ok3[ci.f].x = x; saveMe(); } if (W.open[ci.f] && W.open[ci.f].id === ci.id) W.open[ci.f].x = x; $('cl-first').style.display = 'none'; toast('碑に刻みました', '@' + x); } catch (e) { toast('書きこめませんでした'); }
   };
   $('cl-xskip').onclick = () => { $('cl-first').style.display = 'none'; toast('「無名」として刻まれます'); };
