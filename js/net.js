@@ -14,7 +14,9 @@
 //   sh_u/{匿名ID}         : { c：最後に死んだ時刻, k：最後に越えた時刻, r：最後の知らせ,
 //                           w/{層}：その層で出した越えた記録の数（3まで） }
 //                           回数の制限に使う（w は本人だけ読める。ほかはだれも読めない）
-//   sh_dlog/{層}/{id}    : { p：屍の場所 x_y, u：匿名ID, t }   だれがどこに屍を置いたか（管理人が、ずるの屍だけ取り除くため）
+//   sh_dlog/{層}/{id}    : { p：屍の場所 x_y, u：匿名ID, t, v：1（再生用の記録つき） }   だれがどこに屍を置いたか（軽い）
+//   sh_drec/{層}/{id}    : { r：死んだ挑戦の操作の記録, c：その挑戦の始まりの屍, k：死ぬまでの時間 }   再生用（重いので、要る分だけ読む）
+//   sh_rm/{層}           : { t }   管理人が屍を取り除いた時刻（端末が覚えた確かめを、やりなおす合図）
 //   sh_ckpt              : 管理人が「ここまでは本物」と確かめた層
 //   sh_admins/{匿名ID}    : 管理のかぎ（その端末を管理人にする。だれも読めない）
 //
@@ -23,6 +25,8 @@
 //   ・ルール：数は＋1ずつ、時刻はデータベースの時計、場所・名前の形、層の番号、長さ。開いた印は上書き・消すことができない
 //   ・「開いた」の印は信じない：下の層から順に、越えた記録を計算しなおして本物だった層だけ開く
 //   ・読みこむ側：屍は「本当にそこに止まれる場所」で「列の上限以内」のものだけ数える
+//   ・屍も確かめる：死んだ挑戦の操作を、その挑戦の始まりの屍で再生して、本当にその場所で死ぬものだけ数える
+//     （始まりの屍は、そのときまでに確かめられた屍の中にあること。再生用の記録がない昔の屍はそのまま数える）
 //   ・クリア：操作の記録をこの端末で計算しなおして、本当にゴールできたものだけ認める
 //     にせの記録を大量に入れられても進めるように：古い順に少しずつ確かめ、にせだった所までは覚えておいて二度と計算しない
 //     そのときの屍は、いま本当にある屍の中に入っていること
@@ -172,11 +176,119 @@
     }
     return out;
   };
-  // 屍を読みこむ
+  // =============================================
+  //  屍を確かめる（死んだ挑戦を再生して、本当にそこで死ねた屍だけ）
+  //   ・記録は2つ：sh_dlog（どこ・だれ・いつ。軽い）と sh_drec（再生用の操作。重い）。sh_drec は、まだ屍がない場所の分だけ読む
+  //   ・再生用の記録がない屍（この仕組みより前・版17までのゲーム）：場所ごとの数（n）のうち、再生用つきの記録の数より多い分は、そのまま数える
+  //   ・記録のある屍：時刻の順に、①始まりの屍が「そのときまでに数えた屍」の中にあること ②操作を再生すると、その場所で死ぬこと
+  //   ・確かめた結果はこの端末に覚えておく（shiin_dv）。管理人が屍を取り除いた（sh_rm）・層を消した（sh_reset）ら、やりなおす
+  //   ・再生してもだめだった記録が3つたまった匿名IDは、その層ではもう計算しない（重くされないように）
+  // =============================================
+  const kStr = (k, w) => (k % w) + '_' + Math.floor(k / w);
+  const DMAX = 120 * 60 * 6;   // 1つの挑戦を再生する長さの上限（6分）。それより長い挑戦の屍は、計算せずに数えない
+  // 1つの記録を確かめる：'ok' / 'snap'（始まりの屍がおかしい）/ 'replay'（再生しても、そこで死なない）/ 'long'（長すぎて計算しない）/ 'nodata'
+  N.verifyDeath = function (lvs, it, present) {
+    if (!it || typeof it.r !== 'string' || typeof it.c !== 'string' || !(it.k >= 1) || typeof it.p !== 'string') return 'nodata';
+    if (it.k > DMAX) return 'long';
+    const lv0 = lvs[0], snap = N.corParse(it.c, lv0.w);
+    for (const k of snap.keys()) if (!present.has(kStr(k, lv0.w))) return 'snap';
+    const lim = (it.k | 0) + 2;
+    for (const lv of lvs) {
+      const r = new SH.Run(lv, snap), inp = SH.Rec.parse(it.r);
+      while (!r.over && r.t < lim) r.step(inp(r.t + 1));
+      if (r.over && !r.clear && r.place && !r.place.vanish && (r.place.x + '_' + r.place.y) === it.p) return 'ok';
+    }
+    return 'replay';
+  };
+  // まとめて確かめる（別の所でも、ここでも同じ計算）。budget：計算する動きの量。返り値：何こ終えたか・増えた屍・だめだったID
+  N.verifyDeaths = function (lvs, items, presentArr, bad, budget) {
+    const present = new Set(presentArr), add = [], badInc = {}; let i = 0;
+    for (; i < items.length; i++) {
+      const it = items[i];
+      if (present.has(it.p)) continue;                                   // もう屍がある場所：計算しなくてよい
+      if (((bad[it.u] || 0) + (badInc[it.u] || 0)) >= 3) continue;      // だめな記録が多いID：計算しない
+      if (budget <= 0) break;
+      if (!(it.k <= DMAX)) continue;                                     // 長すぎる記録：計算しない（数えもしない）
+      budget -= Math.max(1, it.k | 0) * lvs.length;
+      const res = N.verifyDeath(lvs, it, present);
+      if (res === 'ok') { present.add(it.p); add.push(it.p); }
+      else if (res === 'replay') badInc[it.u] = (badInc[it.u] || 0) + 1;
+    }
+    return { done: i, add, badInc };
+  };
+  let dw = null, dwid = 0; const dcb = {};
+  function dWorker() {
+    if (dw !== null) return dw;
+    try {
+      if (typeof Worker === 'undefined' || typeof document === 'undefined') return (dw = false);
+      dw = new Worker('js/stuck-worker.js?v=' + (SH.VER || '0'));
+      dw.onmessage = ev => { const f = dcb[ev.data.id]; if (f) { delete dcb[ev.data.id]; f(ev.data); } };
+      dw.onerror = () => { dw = false; for (const k in dcb) { const f = dcb[k]; delete dcb[k]; f({ err: 'worker' }); } };
+    } catch (e) { dw = false; }
+    return dw;
+  }
+  const plainLv = lv => ({ f: lv.f, w: lv.w, h: lv.h, tiles: lv.tiles, cap: lv.cap, ents: lv.ents, goal: lv.goal, start: lv.start });
+  function verifyDeathsAsync(lvs, items, present, bad, budget) {
+    const w = dWorker(), sync = () => N.verifyDeaths(lvs, items, present, bad, budget);
+    if (!w) return Promise.resolve(sync());
+    return new Promise(res => {
+      const id = ++dwid, tm = setTimeout(() => { if (dcb[id]) { delete dcb[id]; res(sync()); } }, 120000);
+      dcb[id] = d => { clearTimeout(tm); res(d.err ? sync() : d.res); };
+      try { w.postMessage({ type: 'deaths', id, lvs: lvs.map(plainLv), items, present, bad, budget }); }
+      catch (e) { clearTimeout(tm); delete dcb[id]; res(sync()); }
+    });
+  }
+  N.variants = null;   // 層を直したことがあるときの昔の版（main.js が入れる）：f → [lv, ...]
+  const DV = () => store('shiin_dv') || {};
+  function dvSave(f, st) { const o = DV(); o[f] = { key: st.key, t: st.t, ti: st.ti, P: [...st.P], cnt: st.cnt, bad: st.bad }; store('shiin_dv', o); }
+  // raw（sh_cells の中身）のうち、数えてよい屍だけを返す。ms：待つ長さの目安（残りは次に呼ばれたときに続ける）
+  N.trustCells = function (lv, raw, ms) {
+    const job = (lv._dvP || Promise.resolve()).catch(() => { }).then(() => trust(lv, raw, ms));
+    lv._dvP = job; return job;
+  };
+  async function trust(lv, raw, ms) {
+    const f = lv.f, until = Date.now() + (ms || 6000);
+    const [rm, rs] = await Promise.all([rest('sh_rm/' + f + '/t').catch(() => null), rest('sh_reset/' + f + '/t').catch(() => null)]);
+    const key = (rm || 0) + '_' + (rs || 0);
+    let st = lv._dv;
+    if (!st || st.key !== key) { const c = DV()[f]; st = c && c.key === key ? { key, t: c.t || 0, ti: c.ti || [], P: new Set(c.P || []), cnt: c.cnt || {}, bad: c.bad || {} } : { key, t: 0, ti: [], P: new Set(), cnt: {}, bad: {} }; lv._dv = st; }
+    // 新しい記録（前に確かめた所より後）
+    let items = [];
+    try {
+      const v = await rest('sh_dlog/' + f, { orderBy: 't', startAt: st.t }) || {};   // 同じ時刻の記録を取りこぼさないように、同じ時刻から読む（ti：その時刻で終えたもの）
+      items = Object.entries(v).map(([id, d]) => Object.assign({ id }, d)).filter(d => d && d.v === 1 && typeof d.t === 'number' && (d.t > st.t || (d.t === st.t && !st.ti.includes(d.id))) && typeof d.p === 'string' && typeof d.u === 'string').sort((a, b) => (a.t - b.t) || (a.id < b.id ? -1 : 1));
+    } catch (e) { items = null; }
+    // 昔からある屍（記録より数が多い分）
+    const extra = {}; if (items) for (const d of items) if (raw[d.p] && d.t <= (+raw[d.p].t || 0)) extra[d.p] = (extra[d.p] || 0) + 1;
+    const legacy = []; for (const k in raw) { const n = (raw[k] && raw[k].n) | 0; if (n - (st.cnt[k] || 0) - (extra[k] || 0) > 0) legacy.push(k); }
+    const lvs = [lv].concat((N.variants && N.variants[f]) || []);
+    // 時刻の順に、少しずつ確かめる
+    let i = 0;
+    while (items && i < items.length) {
+      let part = items.slice(i, i + 200); const present = legacy.concat([...st.P]);
+      // 再生がいりそうな記録だけ、再生用の記録（sh_drec）を読む（屍がもうある場所・だめなIDの分は読まない）
+      const have = new Set(present), need = part.filter(d => !have.has(d.p) && (st.bad[d.u] || 0) < 3 && d.r === undefined && !d._got);
+      const miss = new Set();   // 通信できなかった分：今回はそこで止めて、次に続きから（確かめずに先へ進むと、その屍が消えてしまうので）
+      for (let j = 0; j < need.length; j += 6) await Promise.all(need.slice(j, j + 6).map(d => rest('sh_drec/' + f + '/' + d.id).then(x => { d._got = 1; if (x && typeof x === 'object') { d.r = x.r; d.c = x.c; d.k = x.k; } }).catch(() => { miss.add(d.id); })));
+      if (miss.size) { const cut = part.findIndex(d => miss.has(d.id)); part = part.slice(0, cut); if (!part.length) break; }
+      const res = await verifyDeathsAsync(lvs, part, present, st.bad, 120 * 60 * 20);
+      if (!res || !(res.done >= 0)) break;
+      for (const p of res.add) st.P.add(p);
+      for (const u in res.badInc) st.bad[u] = (st.bad[u] || 0) + res.badInc[u];
+      for (let j = 0; j < res.done; j++) { const d = part[j]; st.cnt[d.p] = (st.cnt[d.p] || 0) + 1; if (d.t !== st.t) { st.t = d.t; st.ti = []; } st.ti.push(d.id); }
+      i += res.done;
+      dvSave(f, st);
+      if (miss.size || res.done === 0 || Date.now() > until) break;   // 計算の区切りで止まっただけなら、時間のあるうちは続ける
+    }
+    lv._dvMore = !!(items && i < items.length);
+    const out = {}; for (const k of legacy) if (raw[k]) out[k] = raw[k]; for (const k of st.P) if (raw[k]) out[k] = raw[k];
+    return out;
+  }
+  // 屍を読みこむ（確かめた屍だけ）
   N.loadCells = async function (lv) {
     const v = await rest('sh_cells/' + lv.f) || {};
     lv._raw = v; lv._fullAt = Date.now(); lv._maxT = 0; for (const k in v) if (v[k] && v[k].t > lv._maxT) lv._maxT = v[k].t;
-    return N.sanitize(lv, v);
+    return N.sanitize(lv, await N.trustCells(lv, v, 8000));
   };
   // 挑みなおす前に、ほかの人の新しい屍を読む（前に読んだときより新しい分だけ）
   N.syncCells = async function (lv, mine) {
@@ -185,15 +297,15 @@
     try { v = await rest('sh_cells/' + lv.f, { orderBy: 't', startAt: (lv._maxT || 0) + 1 }); }
     catch (e) { if (Date.now() - (lv._fullAt || 0) < 30000) return null; v = await rest('sh_cells/' + lv.f); lv._raw = {}; lv._fullAt = Date.now(); }
     for (const k in v || {}) { if (!v[k]) continue; lv._raw[k] = v[k]; if (v[k].t > lv._maxT) lv._maxT = v[k].t; }
-    // 自分の屍で、まだ届いていないもの
-    const raw = Object.assign({}, lv._raw);
+    // 確かめた屍だけ ＋ 自分の屍で、まだ届いていないもの
+    const raw = Object.assign({}, await N.trustCells(lv, lv._raw, 4000));
     for (const [k, c] of mine || []) { const key = (k % lv.w) + '_' + Math.floor(k / lv.w); if (!raw[key]) raw[key] = { n: c.n, l: c.last, t: c.t || 0 }; }
     return N.sanitize(lv, raw);
   };
   // =============================================
   //  死んだ：屍を＋1、死んだ数、いちばん先、屍の碑
   // =============================================
-  N.died = function (lv, place, name, maxX) {
+  N.died = function (lv, place, name, maxX, rec, cor, ticks) {
     const f = lv.f, mx = Math.min(lv.goal, Math.floor(maxX)), cp = place && !place.vanish ? 'sh_cells/' + f + '/' + place.x + '_' + place.y : null;
     return inLane('c', 800, () => tx(async inc => {
       await N.token();
@@ -202,7 +314,7 @@
       if (!(st && st.m >= mx)) w['sh_stat/' + f + '/m'] = mx;
       // 屍を置く：だれがどこに置いたかの記録（sh_dlog）をいっしょに書く
       let nv = null;
-      if (cp) { const g = pid(); nv = { n: inc ? INC : ((cur && cur.n) || 0) + 1, l: name, t: SV, g }; w[cp] = nv; w['sh_dlog/' + f + '/' + g] = { p: place.x + '_' + place.y, u: N.uid, t: SV }; }
+      if (cp) { const g = pid(); nv = { n: inc ? INC : ((cur && cur.n) || 0) + 1, l: name, t: SV, g }; w[cp] = nv; w['sh_dlog/' + f + '/' + g] = { p: place.x + '_' + place.y, u: N.uid, t: SV, v: 1 }; w['sh_drec/' + f + '/' + g] = { r: String(rec || '').slice(0, 20000), c: String(cor || '').slice(0, 30000), k: Math.max(1, ticks | 0) }; }
       return { w, r: nv };
     }));
   };
@@ -316,13 +428,13 @@
   // ---------- 管理（管理のかぎを、この端末の匿名IDに登録してから） ----------
   N.adminLogin = async function (key) { await N.token(); await restWrite('PUT', 'sh_admins/' + N.uid, String(key)); return N.uid; };
   // その層の屍をぜんぶ消す
-  N.resetFloor = async function (f) { await update({ ['sh_cells/' + f]: null, ['sh_dlog/' + f]: null, ['sh_rep/' + f]: null, ['sh_reset/' + f]: { t: SV } }); };
+  N.resetFloor = async function (f) { await update({ ['sh_cells/' + f]: null, ['sh_dlog/' + f]: null, ['sh_drec/' + f]: null, ['sh_rm/' + f]: { t: SV }, ['sh_rep/' + f]: null, ['sh_reset/' + f]: { t: SV } }); };
   // 第from層から上を、まだだれも越えていない状態に戻す（越えた記録・開いた印・数・知らせ・碑、屍もえらべる）
   N.closeFrom = async function (from, withCells) {
     const w = {};
     for (let f = from; f <= 100; f++) {
       w['sh_open/' + f] = null; w['sh_clear/' + f] = null; w['sh_stat/' + f] = null; w['sh_rep/' + f] = null; w['sh_reset/' + f] = { t: SV };
-      if (withCells) { w['sh_cells/' + f] = null; w['sh_dlog/' + f] = null; }
+      if (withCells) { w['sh_cells/' + f] = null; w['sh_dlog/' + f] = null; w['sh_drec/' + f] = null; w['sh_rm/' + f] = { t: SV }; }
     }
     await update(w);
     // 屍の碑（第from層より上のもの）
@@ -346,7 +458,8 @@
     const cells = await rest('sh_cells/' + f) || {}, dec = {}, w = {};
     for (const p of g.ps) dec[p] = (dec[p] || 0) + 1;
     for (const p in dec) { const c = cells[p]; if (!c) continue; const n = (c.n | 0) - dec[p]; w['sh_cells/' + f + '/' + p] = n >= 1 ? Object.assign({}, c, { n }) : null; }
-    for (const id of g.ids) w['sh_dlog/' + f + '/' + id] = null;
+    for (const id of g.ids) { w['sh_dlog/' + f + '/' + id] = null; w['sh_drec/' + f + '/' + id] = null; }
+    w['sh_rm/' + f] = { t: SV };   // 端末が覚えた確かめを、やりなおす合図
     // 一度に書きすぎないように分ける
     const keys = Object.keys(w); for (let i = 0; i < keys.length; i += 400) { const part = {}; for (const k of keys.slice(i, i + 400)) part[k] = w[k]; await update(part); }
     return Object.keys(dec).length;

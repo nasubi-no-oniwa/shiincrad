@@ -4,6 +4,10 @@ const V = ((self.location && self.location.search || '').match(/v=([^&]+)/) || [
 importScripts('engine.js?v=' + V, 'bosses.js?v=' + V, 'reach.js?v=' + V, 'net.js?v=' + V);
 onmessage = function (ev) {
   const { id, lv, cor } = ev.data;
+  if (ev.data.type === 'deaths') {   // 屍の記録をまとめて確かめる
+    try { const d = ev.data; postMessage({ id, res: self.SH.NET.verifyDeaths(d.lvs, d.items, d.present, d.bad, d.budget) }); } catch (e) { postMessage({ id, err: String(e) }); }
+    return;
+  }
   if (ev.data.type === 'verify') {   // 越えた記録を計算しなおす
     try { postMessage({ id, ok: !!self.SH.NET.verifyClear(lv, ev.data.c, ev.data.cells, ev.data.rs) }); } catch (e) { postMessage({ id, err: String(e) }); }
     return;

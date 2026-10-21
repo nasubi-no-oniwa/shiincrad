@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '17';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '18';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -30,6 +30,8 @@
     if (!chunks[ci]) chunks[ci] = fetch('levels/l' + ci + '.json?v=' + SH.VER).then(r => r.json());
     const recs = await chunks[ci], r = recs.find(x => x.f === f); if (!r) throw new Error('層がありません');
     if (r._lv) return r._lv;
+    // 層を直したことがあるときの昔の版（屍の確かめにも使う）
+    NET.variants = NET.variants || {}; if (!(f in NET.variants)) NET.variants[f] = await getVariants(f);
     return r._lv = decodeRec(r);
   }
   function decodeRec(r) {
@@ -263,7 +265,8 @@
     toast(`${name}は死んだンゴ`, sub, 1500);
     const mx = run.p.maxX;
     const fl = S.lv.f;
-    NET.died(S.lv, pl, name, mx).then(() => { S.pending = Math.max(0, S.pending - 1); const st = W.stat[fl] = W.stat[fl] || {}; st.d = (st.d || 0) + 1; st.m = Math.max(st.m || 0, Math.floor(mx)); updateHud(); refreshStat(); }).catch(() => { S.pending = Math.max(0, S.pending - 1); });
+    const myKey = !pl.vanish ? pl.y * S.lv.w + pl.x : -1, myCor = S.cor;
+    NET.died(S.lv, pl, name, mx, S.rec.str(), S.startCor, run.t).then(() => { S.pending = Math.max(0, S.pending - 1); const st = W.stat[fl] = W.stat[fl] || {}; st.d = (st.d || 0) + 1; st.m = Math.max(st.m || 0, Math.floor(mx)); updateHud(); refreshStat(); }).catch(() => { S.pending = Math.max(0, S.pending - 1); const c = myKey >= 0 && myCor.get(myKey); if (c && c.n <= 1) myCor.delete(myKey); });   // 送れなかった屍は、この端末でも消す（あとの挑戦の確かめが通らなくなるので）
     updateHud();
     if (S.deathsHere % 15 === 0 && S.latest) setTimeout(() => autoStuck(false), 1200);
     const lvNow = S.lv; S.syncP = NET.syncCells(lvNow, S.cor).then(m => { if (m && S.lv === lvNow) S.nextCor = m; }).catch(() => { });
