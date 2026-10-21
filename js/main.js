@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '20';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '21';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -73,12 +73,18 @@
         const f = computeLatest(); if (W.done) break;
         const o = W.open[f]; if (!o || f <= W.ckpt) break;
         const ng = ME.ng3[f]; if (ng && ng.t === o.t && Date.now() - ng.at < 300000) break;   // さっきだめだった印は5分あける
-        let c = null;
-        try { const lv2 = await getLevel(f), cells = await NET.loadCells(lv2); c = await NET.firstClear(lv2, cells, await getVariants(f)); }
+        let c = null, lv2 = null;
+        try {
+          lv2 = await getLevel(f);
+          // 2回目からは、増えた屍だけ読む（屍の確かめの続き）
+          let cells = lv2._raw ? await NET.syncCells(lv2, new Map()).catch(() => null) : null;
+          if (!cells) cells = await NET.loadCells(lv2);
+          c = await NET.firstClear(lv2, cells, await getVariants(f));
+        }
         catch (e) { break; }   // 読めない → あとで
         if (W.open[f] !== o) continue;
         if (c) { ME.ok3[f] = { t: o.t, id: c.id, n: NET.cleanName(c.n) || '名無し', x: NET.cleanX(c.x) }; delete ME.ng3[f]; saveMe(); computeLatest(); title.paint(); }
-        else if (NET.more) continue;   // 確かめる記録が多くて区切った → すぐ続きを（にせだった所は覚えているので、同じ計算はしない）
+        else if (NET.more) { if (lv2 && lv2._dvMore) await new Promise(r => setTimeout(r, 1500)); continue; }   // 確かめの途中 → 少しあけて続きを（にせだった所は覚えているので、同じ計算はしない）
         else { ME.ng3[f] = { t: o.t, at: Date.now() }; saveMe(); break; }
       }
     })().finally(() => { chainP = null; });

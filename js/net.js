@@ -271,7 +271,7 @@
       // 再生がいりそうな記録だけ、再生用の記録（sh_drec）を読む（屍がもうある場所・だめなIDの分は読まない）
       const have = new Set(present), need = part.filter(d => !have.has(d.p) && (st.bad[d.u] || 0) < 3 && d.r === undefined && !d._got);
       const miss = new Set();   // 通信できなかった分：今回はそこで止めて、次に続きから（確かめずに先へ進むと、その屍が消えてしまうので）
-      for (let j = 0; j < need.length; j += 6) await Promise.all(need.slice(j, j + 6).map(d => rest('sh_drec/' + f + '/' + d.id).then(x => { d._got = 1; if (x && typeof x === 'object') { d.r = x.r; d.c = x.c; d.k = x.k; } }).catch(() => { miss.add(d.id); })));
+      for (let j = 0; j < need.length; j += 24) await Promise.all(need.slice(j, j + 24).map(d => rest('sh_drec/' + f + '/' + d.id).then(x => { d._got = 1; if (x && typeof x === 'object') { d.r = x.r; d.c = x.c; d.k = x.k; } }).catch(() => { miss.add(d.id); })));
       if (miss.size) { const cut = part.findIndex(d => miss.has(d.id)); part = part.slice(0, cut); if (!part.length) break; }
       const res = await verifyDeathsAsync(lvs, part, present, st.bad, 120 * 60 * 20);
       if (!res || !(res.done >= 0)) break;
@@ -283,8 +283,12 @@
       dvSave(f, st);
       if (miss.size || res.done === 0 || Date.now() > until) break;   // 計算の区切りで止まっただけなら、時間のあるうちは続ける
     }
-    lv._dvMore = !!(items && i < items.length);
+    lv._dvMore = !items || i < items.length;
     const out = {}; for (const k of legacy) if (raw[k]) out[k] = raw[k]; for (const k of st.P) if (raw[k]) out[k] = raw[k];
+    // まだ確かめていない屍も、ひとまず見せる（にせはまれ。確かめ終わったら、にせだけ消える）
+    //  だめな記録が3つたまったIDの屍は、最初から見せない
+    if (items) for (let j = i; j < items.length; j++) { const d = items[j]; if ((st.bad[d.u] || 0) < 3 && raw[d.p]) out[d.p] = raw[d.p]; }
+    lv._verifiedN = legacy.length + st.P.size;
     // 確かな根拠：確かめた屍の一番奥と、本物だった挑戦が行けた一番奥（「道ができた」の表示に使う）
     let far = st.far || 0; for (const k in out) { const x = +k.split('_')[0] + 1; if (x > far) far = x; }
     N.far = N.far || {}; N.far[f] = Math.max(N.far[f] || 0, Math.floor(far));
@@ -394,9 +398,11 @@
   // その層の、はじめて越えた本当の人（いちばん早い記録から順に確かめる）
   //  にせの記録を大量に入れられても進めるように：
   //   ・10こずつ古い順に読む。1回に確かめるのは計算の量で決めた分まで（足りなければ、次に呼ばれたときに続きから）
-  //   ・にせだった記録の時刻を覚えておく（shiin_vc）。そこより古いものは二度と読まない・計算しない
-  const VC = () => store('shiin_vc') || {};
+  //   ・にせだった記録の時刻を覚えておく（shiin_vc2）。そこより古いものは二度と読まない・計算しない
+  const VC = () => store('shiin_vc2') || {};   // 版21で作りなおし（版18〜20は、屍の確かめの途中で本物を外していた）
   N.firstClear = async function (lv, cells, variants) {
+    // 屍の確かめがまだ途中なら、越えた記録は判定しない（始まりの屍が、まだ確かめていない屍を含むことがあるので）。呼んだ側が少しあとで続ける
+    if (lv._dvMore) { N.more = true; return null; }
     const f = lv.f, rs = await rest('sh_reset/' + f + '/t').catch(() => null);
     const vc = VC(); let cur = vc[f] && vc[f].rs === (rs || 0) ? vc[f].t : 0;
     let budget = 120 * 60 * 120;   // 1回に計算する量（2時間ぶんの動き）。足りなければ N.more を立てて、呼んだ側がすぐ続ける
@@ -414,7 +420,7 @@
         for (const old of (variants || [])) { const raw = lv._raw; if (!raw) break; if (await N.verifyAsync(old, c, N.sanitize(old, raw), rs)) { okOld = old; break; } }
         if (okOld) { c._lv = okOld; return c; }
         // にせ（または今の屍では成り立たない）：ここまでは覚えておく
-        cur = c.t; const o = VC(); o[f] = { t: cur, rs: rs || 0 }; store('shiin_vc', o);
+        cur = c.t; const o = VC(); o[f] = { t: cur, rs: rs || 0 }; store('shiin_vc2', o);
       }
       if (list.length < 10) return null;
     }

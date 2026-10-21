@@ -43,12 +43,12 @@
 </div>
 <div class="row"><span>層を直接しらべる</span><input id="fno" type="number" min="1" max="100" value="1" style="width:80px"><button id="look">しらべる</button><button id="spec">スペクターで見る</button></div>
 <div id="list"><p>読みこみ中…</p></div>
-<script src="js/firebase-config.js?v=20"></script>
-<script src="js/engine.js?v=20"></script>
-<script src="js/bosses.js?v=20"></script>
-<script src="js/reach.js?v=20"></script>
-<script src="js/render.js?v=20"></script>
-<script src="js/net.js?v=20"></script>
+<script src="js/firebase-config.js?v=21"></script>
+<script src="js/engine.js?v=21"></script>
+<script src="js/bosses.js?v=21"></script>
+<script src="js/reach.js?v=21"></script>
+<script src="js/render.js?v=21"></script>
+<script src="js/net.js?v=21"></script>
 <script>
 (function () {
   const SH = window.SH, NET = SH.NET, T = SH.T, $ = id => document.getElementById(id);
@@ -168,7 +168,11 @@
     const f = Math.max(1, Math.min(100, Math.floor(+$('g-vf').value || 1))), out = $('g-out');
     out.innerHTML = '<p>確かめています…</p>';
     try {
-      const lv = await getLevel(f), cells = await NET.loadCells(lv), vars = await variants(f);
+      const lv = await getLevel(f); let cells = await NET.loadCells(lv); const vars = await variants(f);
+      // 屍の確かめが終わるまで待つ（途中で判定すると、本物の記録を「にせ」と見てしまう）
+      for (let i = 0; i < 40 && lv._dvMore; i++) { out.innerHTML = `<p>屍を確かめています…（${lv._verifiedN || 0} か所まで）</p>`; await NET.trustCells(lv, lv._raw, 15000); }
+      if (lv._dvMore) { out.innerHTML = '<p class="bad">屍の確かめが終わりませんでした。少し待ってから、もう一度押してください。</p>'; return; }
+      cells = NET.sanitize(lv, await NET.trustCells(lv, lv._raw, 1000));
       const [all, rs, op] = await Promise.all([NET.rest('sh_clear/' + f), NET.rest('sh_reset/' + f + '/t').catch(() => null), NET.rest('sh_open/' + f)]);
       const list = Object.entries(all || {}).map(([id, c]) => Object.assign({ id }, c)).sort((a, b) => (a.t || 0) - (b.t || 0));
       const good = [], bad = [];
