@@ -21,6 +21,7 @@
   const tri = p => { const f = p - Math.floor(p); return f < 0.5 ? f * 2 : 2 - f * 2; };   // 0→1→0
   // ---------- 物の大きさ・動き ----------
   const PW = 0.8, PH = 0.8;
+  const ZAP2 = SH.ZAP2 = 74;   // 新しい電気の梯子にする層（越えた層・挑戦中の層は、前の決まりのまま）
   const GRAV = 40, JV = 16, SPD = 6.2, ACC = 60, MAXF = 22;
   SH.PHYS = { GRAV, JV, SPD, PW, PH };
   // ---------- 1回の挑戦 ----------
@@ -109,6 +110,24 @@
       if (p.x + PW >= lv.goal) { this.clear = true; this.over = true; this.ev('clear'); }
     }
     ev(k, a) { this.events.push({ k, t: this.t, a }); }
+    // 電気の梯子（第74層から）：電気の玉が梯子の上をゆっくり上下する
+    //  ・天井から下へ、1秒に2マスで下りる → 梯子の下の近く（頭より上）で1.2秒消えて休む → 1秒に3マスで昇る → また下りる
+    //  ・休みの直前0.5秒は点滅して知らせる。梯子の下で待っていれば、しびれない
+    //  ・玉は梯子1マスぶん。玉に触れるとしびれる（屍はふつうに残る）
+    zap2(e, t) {
+      const top = e.y + e.h;
+      let gy = this.H;
+      for (let x = Math.floor(e.x); x < Math.ceil(e.x + e.w - 0.01); x++) for (let y = Math.floor(top); y < this.H; y++) if (this.solid(x, y)) { if (y < gy) gy = y; break; }
+      const lo = gy - 1.5, hi = top + 0.5, L = lo - hi;
+      if (!(L > 0)) { e.zon = false; e.zwarn = false; e.zb = null; e.st.z = 0; return; }
+      const dD = Math.max(1, Math.round(L / 2 * 120)), dR = 144, dU = Math.max(1, Math.round(L / 3 * 120)), P = dD + dR + dU;
+      const f = (t + (e.zo || 0)) % P;
+      if (f < dD) { e.zb = hi + L * (f / dD); e.zon = true; e.zdir = 1; }
+      else if (f < dD + dR) { e.zb = lo; e.zon = false; e.zdir = 0; }
+      else { e.zb = lo - L * ((f - dD - dR) / dU); e.zon = true; e.zdir = -1; }
+      e.zwarn = f >= dD - 60 && f < dD;
+      if (e.zon && !e.st.z) { e.st.z = 1; this.ev('zap', e.x); } if (!e.zon) e.st.z = 0;
+    }
     // はしごにさわっているか（止まった天井の下、天井の下はしから地面まで）
     ladderAt() {
       const p = this.p;
@@ -203,7 +222,8 @@
             if (e.jam) { const jx = e.hx !== undefined ? e.hx : e.x; let full = true, any = false; for (let x = Math.floor(jx); x < Math.ceil(jx + e.w - 0.01); x++) { if (this.cap[x] > 0) { any = true; if (this.col[x] < this.cap[x]) full = false; } } if (any && full) {
               e.jammed = true; e.x = jx; e.y = e.y0; e.falling = false; e.warn = false;
               // zap（第65層から）：止まった天井の下（梯子と、その下の列ぜんぶ）に電気が流れる。1.5秒ごとに0.5秒流れる。流れる0.25秒前に知らせ
-              if (e.zap) { const zf = (t + (e.zo || 0)) % 180; e.zon = zf < 60; e.zwarn = zf >= 150; if (e.zon && !e.st.z) { e.st.z = 1; this.ev('zap', e.x); } if (!e.zon) e.st.z = 0; }
+              if (e.zap && this.lv.f >= ZAP2) this.zap2(e, t);
+              else if (e.zap) { const zf = (t + (e.zo || 0)) % 180; e.zon = zf < 60; e.zwarn = zf >= 150; if (e.zon && !e.st.z) { e.st.z = 1; this.ev('zap', e.x); } if (!e.zon) e.st.z = 0; }
               break;
             } }
             const per = e.per, f = ((t + (e.off || 0)) % per) / per;
@@ -285,7 +305,7 @@
     }
     entHit(e) {
       switch (e.k) {
-        case 'crush': if (e.jammed) return e.zap && e.zon && this.hitRect(e.x, e.y + e.h, e.w, this.H - e.y - e.h, 0.15) ? 'zap' : null; return (e.v2 ? e.kill : (e.falling || e.y > e.y0 + 0.05)) && this.hitRect(e.x, e.y, e.w, e.h, 0.12) ? 'crush' : null;
+        case 'crush': if (e.jammed) { if (e.zap && this.lv.f >= ZAP2) return e.zon && e.zb !== null && e.zb !== undefined && this.hitRect(e.x + 0.2, e.zb - 0.5, e.w - 0.4, 1.0, 0.15) ? 'zap' : null; return e.zap && e.zon && this.hitRect(e.x, e.y + e.h, e.w, this.H - e.y - e.h, 0.15) ? 'zap' : null; } return (e.v2 ? e.kill : (e.falling || e.y > e.y0 + 0.05)) && this.hitRect(e.x, e.y, e.w, e.h, 0.12) ? 'crush' : null;
         case 'saw': { const p = this.p, dx = p.x + PW / 2 - e.x, dy = p.y + PH / 2 - e.y, r = (e.rad || 0.5) + 0.3; return dx * dx + dy * dy < r * r ? 'saw' : null; }
         case 'jet': if (!e.on) return null; return this.hitRect(e.x, e.dir < 0 ? e.y - e.len + 1 : e.y, 1, e.len, 0.15) ? 'fire' : null;
         case 'bolt': return e.on && this.hitRect(Math.floor(e.x), 0, 1, e.yb, 0.1) ? 'bolt' : null;
@@ -333,7 +353,7 @@
       }
       if (!vanish && !up) while (y > 0 && this.tile(x, y - 1) === T.WATER && !this.hasCorpse(x, y - 1)) y--; // 水の底でも水面へ浮く
       if (this.tile(x, y) === T.POISON) vanish = 'poison';
-      if (kind === 'zap') vanish = 'zap';   // しびれた屍は残らない
+      if (kind === 'zap' && this.lv.f < ZAP2) vanish = 'zap';   // しびれた屍は残らない（第73層まで。第74層からは、ふつうに残る）
       if (!vanish && this.col[x] >= this.cap[x]) vanish = 'cap';
       if (!vanish && this.hasCorpse(x, y)) { // 同じマス（上に積めない）
         const d = up ? 1 : -1; if (y + d >= 0 && y + d < this.H && !this.solidFor(x, y + d)) y += d; else vanish = 'cap';

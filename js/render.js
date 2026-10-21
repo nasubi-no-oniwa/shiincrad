@@ -200,7 +200,20 @@
                 rect(lx, e.y + e.h, 0.12, hh, '#c89a5a'); rect(lx + lw - 0.12, e.y + e.h, 0.12, hh, '#c89a5a');
                 for (let yy = e.y + e.h + 0.3; yy < gy0; yy += 0.5) rect(lx, yy, lw, 0.1, '#e0b878');
               } else for (let k = 0; k < 2; k++) rect(e.x + 0.25 + k * (e.w - 0.75), e.y + e.h, 0.25, Math.max(0, gy0 - e.y - e.h), 'rgba(160,130,100,.75)');
-              if (e.zap) { // 電気の梯子：天井の下の列ぜんぶ（屍の上まで）。知らせは黄色く点滅、流れている間は青白い稲妻
+              if (e.zap && this.lv.f >= SH.ZAP2) { // 電気の梯子（第74層から）：梯子の上を上下する電気の玉
+                const top = e.y + e.h;
+                rect(e.x, top, e.w, 0.14, e.zon ? '#bfe8ff' : '#5a7088');
+                if (e.zb !== null && e.zb !== undefined) {
+                  const cy = e.zb, x0 = e.x + 0.2, w = e.w - 0.4;
+                  if (!e.zon) { g.globalAlpha = 0.35; rect(x0, cy - 0.5, w, 1.0, '#5a7088'); g.globalAlpha = 1; }   // 休み：暗い
+                  else {
+                    const col = e.zwarn ? (blink > 0.5 ? '#ffe060' : '#7fd4ff') : e.zdir > 0 ? '#7fd4ff' : '#ffb347';   // 下りるとき青、昇るときだいだい、休みの前は点滅
+                    g.globalAlpha = 0.35; rect(x0 - 0.2, cy - 0.7, w + 0.4, 1.4, col); g.globalAlpha = 0.85; rect(x0, cy - 0.5, w, 1.0, col); g.globalAlpha = 1;
+                    g.strokeStyle = '#ffffff'; g.lineWidth = S * 0.08;
+                    for (let k = 0; k < 2; k++) { g.beginPath(); let yy = cy - 0.5 + hr(run.t + k * 7 + Math.floor(e.x) * 3) * 1.0; g.moveTo(x0 * S, yy * S); for (let xx = x0 + 0.3; xx <= x0 + w; xx += 0.3) { yy = cy - 0.5 + hr(Math.floor(xx * 10) * 7 + run.t + k * 31) * 1.0; g.lineTo(xx * S, yy * S); } g.stroke(); }
+                  }
+                }
+              } else if (e.zap) { // 電気の梯子：天井の下の列ぜんぶ（屍の上まで）。知らせは黄色く点滅、流れている間は青白い稲妻
                 const top = e.y + e.h;
                 rect(e.x, top, e.w, 0.14, e.zon ? '#bfe8ff' : e.zwarn ? '#ffe060' : '#5a7088');   // 天井の下の電極
                 for (let cx = Math.floor(e.x); cx < Math.ceil(e.x + e.w - 0.01); cx++) {

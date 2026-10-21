@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '22';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '23';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -255,7 +255,7 @@
         case 'land': SND.se('land'); break;
         case 'crush': SND.se('crush'); view.shake = Math.max(view.shake, 0.4); break;
         case 'bolt': SND.se('bolt'); view.shake = Math.max(view.shake, 0.5); break;
-        case 'zap': if (Math.abs(e.a - run.p.x) < 14) { SND.se('zap'); if (!S.zapTip && !S.watch) { S.zapTip = 1; toast('電気の梯子', '黄色く光ったら、電気が流れる', 2200); } } break;   // 近くの電気の梯子だけ鳴らす
+        case 'zap': if (Math.abs(e.a - run.p.x) < 14) { SND.se('zap'); if (!S.zapTip && !S.watch) { S.zapTip = 1; if (S.lv.f >= SH.ZAP2) toast('電気の梯子', '電気の玉が下りてきて消えたら、すぐ昇れ', 2600); else toast('電気の梯子', '黄色く光ったら、電気が流れる', 2200); } } break;   // 近くの電気の梯子だけ鳴らす
         case 'quake': SND.se('quake'); break;
         case 'trap': SND.se('trap'); break;
         case 'boss': SND.se('boss'); { const b = run.ents.find(x => x.k === 'boss'); toast((S.lv.q ? '関門の番人　' : '番人　') + (b ? b.name : ''), '倒せない。よけて、越えろ', 2200); } break;
