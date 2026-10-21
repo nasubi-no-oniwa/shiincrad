@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '18';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '19';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -54,7 +54,12 @@
     return { t: o.t, n: v.n, x: o.id === v.id && o.x ? o.x : v.x, id: v.id }; };
   // 見せる数字：「いちばん先」と「越えた人」はにせのクリアで書きかえられるので、本当に越えたと確かめた層だけそのまま見せる
   //  確かめていない層：いちばん先はゴールの手前まで（99%まで）、越えた人は0
-  const shownStat = (f, g) => { const st = W.stat[f] || {}; if (okFloor(f)) return st; return Object.assign({}, st, { m: Math.min(st.m || 0, Math.max(0, (g || 1) - 1)), f: 0 }); };
+  //  確かめていない層の「いちばん先」は、確かな根拠（確かめた屍の一番奥・本物だった挑戦が行けた一番奥）までにする
+  const shownStat = (f, g) => {
+    const st = W.stat[f] || {}; if (okFloor(f)) return st;
+    const ev = NET.far && NET.far[f] !== undefined ? NET.far[f] : Infinity;   // まだ確かめていない間は、ゴールの手前までで出しておく
+    return Object.assign({}, st, { m: Math.min(st.m || 0, ev, Math.max(0, (g || 1) - 1)), f: 0 });
+  };
   function computeLatest() {
     let L = 1; while (L <= 100 && okFloor(L)) L++;
     W.done = L > 100; W.latest = Math.min(100, L); return W.latest;
@@ -79,10 +84,16 @@
     })().finally(() => { chainP = null; });
     return chainP;
   }
+  // 最新の層の「道ができた」を出すために、その層の屍を裏で確かめておく（遊ぶときにも使うので無駄にならない）
+  let farP = null;
+  function loadFar() {
+    const f = W.latest; if (farP || W.done || (NET.far && NET.far[f] !== undefined && NET.far['_t' + f] > Date.now() - 60000)) return;
+    farP = getLevel(f).then(lv => NET.loadCells(lv)).then(() => { NET.far['_t' + f] = Date.now(); title.paint(); }).catch(() => { }).finally(() => { farP = null; });
+  }
   async function refresh() {
     try { const o = await NET.overview(); W.open = o.open; W.stat = o.stat; W.ckpt = o.ckpt == null ? CK0 : o.ckpt; W.loaded = true; } catch (e) { W.loaded = false; }
     computeLatest(); title.paint();
-    if (W.loaded) verifyChain().then(() => title.paint()).catch(() => { });
+    if (W.loaded) verifyChain().then(() => { title.paint(); loadFar(); }).catch(() => { });
   }
   const totalDead = () => { let n = 0; for (const k in W.stat) n += (W.stat[k] && W.stat[k].d) || 0; return n; };
   // ---------- 画面の切りかえ ----------

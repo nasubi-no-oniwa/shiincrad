@@ -187,7 +187,7 @@
   const kStr = (k, w) => (k % w) + '_' + Math.floor(k / w);
   const DMAX = 120 * 60 * 6;   // 1つの挑戦を再生する長さの上限（6分）。それより長い挑戦の屍は、計算せずに数えない
   // 1つの記録を確かめる：'ok' / 'snap'（始まりの屍がおかしい）/ 'replay'（再生しても、そこで死なない）/ 'long'（長すぎて計算しない）/ 'nodata'
-  N.verifyDeath = function (lvs, it, present) {
+  N.verifyDeath = function (lvs, it, present, out) {   // out.mx：本物だったとき、その挑戦が行けた一番奥
     if (!it || typeof it.r !== 'string' || typeof it.c !== 'string' || !(it.k >= 1) || typeof it.p !== 'string') return 'nodata';
     if (it.k > DMAX) return 'long';
     const lv0 = lvs[0], snap = N.corParse(it.c, lv0.w);
@@ -196,13 +196,13 @@
     for (const lv of lvs) {
       const r = new SH.Run(lv, snap), inp = SH.Rec.parse(it.r);
       while (!r.over && r.t < lim) r.step(inp(r.t + 1));
-      if (r.over && !r.clear && r.place && !r.place.vanish && (r.place.x + '_' + r.place.y) === it.p) return 'ok';
+      if (r.over && !r.clear && r.place && !r.place.vanish && (r.place.x + '_' + r.place.y) === it.p) { if (out) out.mx = r.p.maxX; return 'ok'; }
     }
     return 'replay';
   };
   // まとめて確かめる（別の所でも、ここでも同じ計算）。budget：計算する動きの量。返り値：何こ終えたか・増えた屍・だめだったID
   N.verifyDeaths = function (lvs, items, presentArr, bad, budget) {
-    const present = new Set(presentArr), add = [], badInc = {}; let i = 0;
+    const present = new Set(presentArr), add = [], badInc = {}; let i = 0, far = 0;
     for (; i < items.length; i++) {
       const it = items[i];
       if (present.has(it.p)) continue;                                   // もう屍がある場所：計算しなくてよい
@@ -210,11 +210,11 @@
       if (budget <= 0) break;
       if (!(it.k <= DMAX)) continue;                                     // 長すぎる記録：計算しない（数えもしない）
       budget -= Math.max(1, it.k | 0) * lvs.length;
-      const res = N.verifyDeath(lvs, it, present);
-      if (res === 'ok') { present.add(it.p); add.push(it.p); }
+      const o = {}, res = N.verifyDeath(lvs, it, present, o);
+      if (res === 'ok') { present.add(it.p); add.push(it.p); if (o.mx > far) far = o.mx; }
       else if (res === 'replay') badInc[it.u] = (badInc[it.u] || 0) + 1;
     }
-    return { done: i, add, badInc };
+    return { done: i, add, badInc, far };
   };
   let dw = null, dwid = 0; const dcb = {};
   function dWorker() {
@@ -240,7 +240,7 @@
   }
   N.variants = null;   // 層を直したことがあるときの昔の版（main.js が入れる）：f → [lv, ...]
   const DV = () => store('shiin_dv') || {};
-  function dvSave(f, st) { const o = DV(); o[f] = { key: st.key, t: st.t, ti: st.ti, P: [...st.P], cnt: st.cnt, bad: st.bad }; store('shiin_dv', o); }
+  function dvSave(f, st) { const o = DV(); o[f] = { key: st.key, t: st.t, ti: st.ti, P: [...st.P], cnt: st.cnt, bad: st.bad, far: st.far || 0 }; store('shiin_dv', o); }
   // raw（sh_cells の中身）のうち、数えてよい屍だけを返す。ms：待つ長さの目安（残りは次に呼ばれたときに続ける）
   N.trustCells = function (lv, raw, ms) {
     const job = (lv._dvP || Promise.resolve()).catch(() => { }).then(() => trust(lv, raw, ms));
@@ -251,7 +251,7 @@
     const [rm, rs] = await Promise.all([rest('sh_rm/' + f + '/t').catch(() => null), rest('sh_reset/' + f + '/t').catch(() => null)]);
     const key = (rm || 0) + '_' + (rs || 0);
     let st = lv._dv;
-    if (!st || st.key !== key) { const c = DV()[f]; st = c && c.key === key ? { key, t: c.t || 0, ti: c.ti || [], P: new Set(c.P || []), cnt: c.cnt || {}, bad: c.bad || {} } : { key, t: 0, ti: [], P: new Set(), cnt: {}, bad: {} }; lv._dv = st; }
+    if (!st || st.key !== key) { const c = DV()[f]; st = c && c.key === key ? { key, t: c.t || 0, ti: c.ti || [], P: new Set(c.P || []), cnt: c.cnt || {}, bad: c.bad || {}, far: c.far || 0 } : { key, t: 0, ti: [], P: new Set(), cnt: {}, bad: {}, far: 0 }; lv._dv = st; }
     // 新しい記録（前に確かめた所より後）
     let items = [];
     try {
@@ -274,6 +274,7 @@
       const res = await verifyDeathsAsync(lvs, part, present, st.bad, 120 * 60 * 20);
       if (!res || !(res.done >= 0)) break;
       for (const p of res.add) st.P.add(p);
+      if (res.far > (st.far || 0)) st.far = res.far;
       for (const u in res.badInc) st.bad[u] = (st.bad[u] || 0) + res.badInc[u];
       for (let j = 0; j < res.done; j++) { const d = part[j]; st.cnt[d.p] = (st.cnt[d.p] || 0) + 1; if (d.t !== st.t) { st.t = d.t; st.ti = []; } st.ti.push(d.id); }
       i += res.done;
@@ -282,6 +283,9 @@
     }
     lv._dvMore = !!(items && i < items.length);
     const out = {}; for (const k of legacy) if (raw[k]) out[k] = raw[k]; for (const k of st.P) if (raw[k]) out[k] = raw[k];
+    // 確かな根拠：確かめた屍の一番奥と、本物だった挑戦が行けた一番奥（「道ができた」の表示に使う）
+    let far = st.far || 0; for (const k in out) { const x = +k.split('_')[0] + 1; if (x > far) far = x; }
+    N.far = N.far || {}; N.far[f] = Math.max(N.far[f] || 0, Math.floor(far));
     return out;
   }
   // 屍を読みこむ（確かめた屍だけ）
