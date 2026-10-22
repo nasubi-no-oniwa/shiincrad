@@ -129,3 +129,9 @@ b { font-weight: 400; color: var(--gold); }
 
 .hud .hb.wide { width: auto; padding: 0 8px; font-size: 13px; }
 #game.watching #g-share { display: none; }
+
+/* 配信中 */
+.live { margin: 4px 0 2px; font: inherit; font-size: 15px; padding: 6px 16px; background: #3a1414; color: #fff; border: 2px solid var(--red); animation: livepulse 1.6s ease-in-out infinite; }
+@keyframes livepulse { 50% { box-shadow: 0 0 0 4px rgba(224,80,58,.35); } }
+#live-list a { display: block; text-align: left; margin: 8px 0; padding: 10px 12px; border: 2px solid var(--line); background: #15121c; color: var(--ink); text-decoration: none; }
+#live-list a b { color: var(--gold); } #live-list a small { display: block; color: var(--dim); font-size: 12px; margin-top: 2px; word-break: break-all; }

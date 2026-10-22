@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=32">
+<link rel="stylesheet" href="css/style.css?v=33">
 </head>
 <body>
 <canvas id="cv"></canvas>
@@ -35,6 +35,7 @@
       <div class="lv" id="t-latest">第<b>1</b>層</div>
       <div class="nums"><span>この層の屍 <b id="t-ldead">0</b></span><span>道ができた <b id="t-road">0%</b></span></div>
     </div>
+    <button class="live" id="t-live" style="display:none">🔴 配信先リンク</button><br>
     <button class="go" id="go-latest">第1層に挑む</button>
     <div class="row">
       <button class="sub" id="go-select">層をえらぶ</button>
@@ -66,6 +67,7 @@
     <span class="sp"></span>
     <span>屍 <b id="h-dead">0</b></span>
     <span id="h-time">0.0秒</span>
+    <button class="hb" id="g-live" style="display:none" aria-label="配信先リンク">🔴</button>
     <button class="hb" id="g-how">？</button>
     <button class="hb wide" id="g-share">投稿</button>
     <button class="hb" id="g-snd">♪</button>
@@ -117,6 +119,14 @@
   <button class="sub" id="gr-close">とじる</button>
 </div></div>
 
+<!-- ========== 配信中 ========== -->
+<div class="modal" id="livebox"><div class="card">
+  <h3>🔴 配信中</h3>
+  <div id="live-list"></div>
+  <p class="tiny">タップすると、配信のページが開きます。</p>
+  <button class="sub" id="live-close">とじる</button>
+</div></div>
+
 <!-- ========== 詰み ========== -->
 <div class="modal" id="stuck"><div class="card">
   <h3>詰んだ？</h3>
@@ -151,13 +161,13 @@
   <button class="go" id="how-close">わかった</button>
 </div></div>
 
-<script src="js/firebase-config.js?v=32"></script>
-<script src="js/engine.js?v=32"></script>
-<script src="js/bosses.js?v=32"></script>
-<script src="js/reach.js?v=32"></script>
-<script src="js/render.js?v=32"></script>
-<script src="js/sound.js?v=32"></script>
-<script src="js/net.js?v=32"></script>
-<script src="js/main.js?v=32"></script>
+<script src="js/firebase-config.js?v=33"></script>
+<script src="js/engine.js?v=33"></script>
+<script src="js/bosses.js?v=33"></script>
+<script src="js/reach.js?v=33"></script>
+<script src="js/render.js?v=33"></script>
+<script src="js/sound.js?v=33"></script>
+<script src="js/net.js?v=33"></script>
+<script src="js/main.js?v=33"></script>
 </body>
 </html>

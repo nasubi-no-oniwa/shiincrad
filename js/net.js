@@ -442,6 +442,17 @@
     return inLane('r', 10500, () => tx(async () => { await N.token(); return { w: { ['sh_u/' + N.uid + '/r']: SV, ['sh_rep/' + f + '/' + pid()]: { t: SV, m: Math.floor(maxX), a: auto ? 1 : 0 } }, r: true }; }, 3));
   };
   N.reports = async function () { return (await rest('sh_rep')) || {}; };
+  // ---------- 配信中の人（sh_live/{id}：{ n：名前, u：配信のURL, m：ひとこと, t }。書けるのは管理人だけ） ----------
+  const liveTxt = (s, n) => String(s || '').replace(/[<>&"'\\\n\r\t]/g, '').trim().slice(0, n);
+  const liveUrl = s => { s = String(s || '').trim(); return /^https:\/\/[^\s<>"']{3,300}$/.test(s) ? s : ''; };
+  N.liveUrl = liveUrl;
+  N.live = async function () {
+    const v = await rest('sh_live') || {};
+    return Object.entries(v).filter(([, x]) => x && typeof x === 'object').map(([id, x]) => ({ id, n: liveTxt(x.n, 20), u: liveUrl(x.u), m: liveTxt(x.m, 30), t: +x.t || 0 }))
+      .filter(x => x.n && x.u).sort((a, b) => b.t - a.t).slice(0, 10);
+  };
+  N.liveAdd = async function (n, u, m) { n = liveTxt(n, 20); u = liveUrl(u); m = liveTxt(m, 30); if (!n || !u) throw new Error('名前とURL（https://）を入れてください'); await restWrite('PUT', 'sh_live/' + pid(), { n, u, m, t: SV }); };
+  N.liveDel = async function (id) { await update({ ['sh_live/' + id]: null }); };
   // ---------- 管理（管理のかぎを、この端末の匿名IDに登録してから） ----------
   N.adminLogin = async function (key) { await N.token(); await restWrite('PUT', 'sh_admins/' + N.uid, String(key)); return N.uid; };
   // その層の屍をぜんぶ消す

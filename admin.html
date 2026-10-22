@@ -41,14 +41,21 @@
   <div class="row"><span>第</span><input id="g-df" type="number" min="1" max="100" style="width:70px"><span>層に屍を置いた人を調べる</span><button id="g-db">調べる</button></div>
   <div id="g-out"></div>
 </div>
+<div class="f" id="live">
+  <h2>🔴 配信中の人</h2>
+  <p class="dim">ここに足した人は、ゲームのタイトルの流れる知らせと「配信先リンク」に出ます。ゲーム中の人にも、生き返るときに知らせが出ます。配信が終わったら「消す」を押してください。</p>
+  <div id="lv-now">読みこみ中…</div>
+  <div class="row"><input id="lv-n" placeholder="名前（20文字まで）" maxlength="20" size="14"><input id="lv-u" placeholder="配信のURL（https://〜）" size="28"><input id="lv-m" placeholder="ひとこと（例：第73層に挑戦）" maxlength="30" size="20"><button id="lv-add">足す</button></div>
+  <div id="lv-out"></div>
+</div>
 <div class="row"><span>層を直接しらべる</span><input id="fno" type="number" min="1" max="100" value="1" style="width:80px"><button id="look">しらべる</button><button id="spec">スペクターで見る</button></div>
 <div id="list"><p>読みこみ中…</p></div>
-<script src="js/firebase-config.js?v=21"></script>
-<script src="js/engine.js?v=21"></script>
-<script src="js/bosses.js?v=21"></script>
-<script src="js/reach.js?v=21"></script>
-<script src="js/render.js?v=21"></script>
-<script src="js/net.js?v=21"></script>
+<script src="js/firebase-config.js?v=33"></script>
+<script src="js/engine.js?v=33"></script>
+<script src="js/bosses.js?v=33"></script>
+<script src="js/reach.js?v=33"></script>
+<script src="js/render.js?v=33"></script>
+<script src="js/net.js?v=33"></script>
 <script>
 (function () {
   const SH = window.SH, NET = SH.NET, T = SH.T, $ = id => document.getElementById(id);
@@ -214,7 +221,29 @@
   $('reload').onclick = () => { load(); guard(); };
   $('spec').onclick = () => { const f = Math.max(1, Math.min(100, +$('fno').value || 1)); window.open('./?watch=' + f, '_blank'); };
   $('look').onclick = () => { const f = Math.max(1, Math.min(100, +$('fno').value || 1)); const el = card(f, {}, {}, false); $('list').prepend(el); el.querySelector('.look').click(); };
-  load(); guard();
+  // ---------- 配信中の人 ----------
+  async function liveList() {
+    const box = $('lv-now'); box.textContent = '読みこみ中…';
+    try {
+      const L = await NET.live();
+      if (!L.length) { box.innerHTML = '<p class="dim">いまは出していません。</p>'; return; }
+      box.innerHTML = '';
+      for (const x of L) {
+        const row = document.createElement('div'); row.className = 'row';
+        row.innerHTML = `<span>🔴 <b>${esc(x.n)}</b>${x.m ? '　' + esc(x.m) : ''}<br><small class="dim">${esc(x.u)}　（${day(x.t)}）</small></span>`;
+        const b = document.createElement('button'); b.className = 'red'; b.textContent = '消す';
+        b.onclick = async () => { try { await login(); await NET.liveDel(x.id); liveList(); } catch (e) { $('lv-out').innerHTML = fail(e); } };
+        row.appendChild(b); box.appendChild(row);
+      }
+    } catch (e) { box.innerHTML = fail(e); }
+  }
+  $('lv-add').onclick = async () => {
+    const n = $('lv-n').value, u = $('lv-u').value, m = $('lv-m').value;
+    if (!n.trim() || !NET.liveUrl(u)) { $('lv-out').innerHTML = '<p class="bad">名前と、https:// から始まる配信のURLを入れてください。</p>'; return; }
+    try { await login(); await NET.liveAdd(n, u, m); $('lv-out').innerHTML = '<p class="ok">出しました。</p>'; $('lv-n').value = $('lv-u').value = $('lv-m').value = ''; liveList(); }
+    catch (e) { $('lv-out').innerHTML = fail(e); }
+  };
+  load(); guard(); liveList();
 })();
 </script>
 </body>

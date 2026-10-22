@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '32';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '33';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -98,10 +98,11 @@
   }
   let refAt = 0;
   async function refresh(force) {
-    if (!force && W.loaded && Date.now() - refAt < 60000) { computeLatest(); title.paint(); return; }
+    if (!force && W.loaded && Date.now() - refAt < 60000) { computeLatest(); title.paint(); loadLive().then(() => title.paint()).catch(() => { }); return; }
     refAt = Date.now();
     try { const o = await NET.overview(); W.open = o.open; W.stat = o.stat; W.ckpt = o.ckpt == null ? CK0 : o.ckpt; W.loaded = true; } catch (e) { W.loaded = false; }
     computeLatest(); title.paint();
+    loadLive().then(() => title.paint()).catch(() => { });
     if (W.loaded) verifyChain().then(() => { title.paint(); loadFar(); }).catch(() => { });
   }
   const totalDead = () => { let n = 0; for (const k in W.stat) n += (W.stat[k] && W.stat[k].d) || 0; return n; };
@@ -126,11 +127,37 @@
       $('go-latest').textContent = W.done ? '頂をながめる' : `第${L}層に挑む`;
       // 開いた知らせ（新しい順）
       const news = Object.keys(W.open).map(Number).filter(f => okFloor(f)).map(f => ({ f, o: opener(f) })).sort((a, b) => b.o.t - a.o.t).slice(0, 12);
-      const tk = news.length ? news.map(({ f, o }) => `${ago(o.t)}　第${f + 1 > 100 ? 100 : f + 1}層が開いた ── 第${f}層を越えたのは「${esc(o.n)}」${o.x ? '（@' + esc(o.x) + '）' : ''}`).join('　　◆　　') : 'まだだれも第1層を越えていない。最初の屍になれ。';
+      const liveTk = LIVE.list.map(x => `🔴 ${esc(x.n)}さんが配信中${x.m ? '（' + esc(x.m) + '）' : ''}`);
+      const tk0 = news.length ? news.map(({ f, o }) => `${ago(o.t)}　第${f + 1 > 100 ? 100 : f + 1}層が開いた ── 第${f}層を越えたのは「${esc(o.n)}」${o.x ? '（@' + esc(o.x) + '）' : ''}`).join('　　◆　　') : 'まだだれも第1層を越えていない。最初の屍になれ。';
+      const tk = liveTk.concat([tk0]).join('　　◆　　');
       $('ticker').innerHTML = `<span>${tk}</span>`;
       $('ticker').firstChild.style.animationDuration = Math.max(14, tk.length * 0.22) + 's';
     },
   };
+  // ---------- 配信中の人 ----------
+  //  タイトルでは開いたときに読む（1分に1回まで）。ゲーム中は、生き返るときに5分に1回だけ読みなおす
+  const LIVE = { list: [], at: 0 };
+  async function loadLive(force) {
+    if (!force && Date.now() - LIVE.at < 60000) return LIVE.list;
+    LIVE.at = Date.now();
+    try { LIVE.list = await NET.live(); } catch (e) { }
+    paintLive(); return LIVE.list;
+  }
+  function paintLive() { const on = LIVE.list.length > 0; $('t-live').style.display = on ? '' : 'none'; $('g-live').style.display = on ? '' : 'none'; }
+  const liveHost = u => { try { const h = new URL(u).hostname.replace(/^www\./, ''); return /youtu/.test(h) ? 'YouTube' : /twitch/.test(h) ? 'Twitch' : /nicovideo|nico\.ms/.test(h) ? 'ニコニコ' : /twitcasting/.test(h) ? 'ツイキャス' : /tiktok/.test(h) ? 'TikTok' : /(x|twitter)\.com/.test(h) ? 'X' : h; } catch (e) { return ''; } };
+  function openLive() {
+    const L = LIVE.list;
+    $('live-list').innerHTML = L.length ? L.map(x => `<a href="${esc(x.u)}" target="_blank" rel="noopener noreferrer"><b>${esc(x.n)}</b> さん　<span>${esc(liveHost(x.u))}</span>${x.m ? `<small>${esc(x.m)}</small>` : ''}</a>`).join('') : '<p>いまは配信中の人はいません。</p>';
+    modal('livebox', 1); if ($('game').classList.contains('on')) S.paused = true;
+  }
+  $('t-live').onclick = () => openLive();
+  $('g-live').onclick = () => openLive();
+  $('live-close').onclick = () => { modal('livebox', 0); if ($('game').classList.contains('on')) S.paused = false; };
+  function checkLiveInGame() {
+    if (Date.now() - LIVE.at < 300000) return;
+    const before = new Set(LIVE.list.map(x => x.id));
+    loadLive(true).then(list => { const nw = list.filter(x => !before.has(x.id)); if (nw.length && S.run && $('game').classList.contains('on')) toast(`🔴 ${nw[0].n}さんが配信を始めました`, '右上の🔴から見に行けます', 2800); }).catch(() => { });
+  }
   function ago(t) { const s = Math.max(0, (NET.now() - t) / 1000); if (s < 60) return 'たった今'; if (s < 3600) return Math.floor(s / 60) + '分前'; if (s < 86400) return Math.floor(s / 3600) + '時間前'; return Math.floor(s / 86400) + '日前'; }
   // =============================================
   //  層をえらぶ
@@ -226,7 +253,7 @@
     S.startCor = NET.corStr(S.cor);
     view.follow(S.run.p.x, S.run.p.y, true);
     $('h-name').textContent = S.name;
-    if (!first) view.ring(S.run.p.x + 0.4, S.run.p.y + 0.4, '#fff');
+    if (!first) { view.ring(S.run.p.x + 0.4, S.run.p.y + 0.4, '#fff'); checkLiveInGame(); }
   }
   function updateHud() {
     const st = shownStat(S.lv.f, S.lv.goal);
