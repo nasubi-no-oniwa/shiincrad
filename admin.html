@@ -41,6 +41,12 @@
   <div class="row"><span>第</span><input id="g-df" type="number" min="1" max="100" style="width:70px"><span>層に屍を置いた人を調べる</span><button id="g-db">調べる</button></div>
   <div id="g-out"></div>
 </div>
+<div class="f" id="now">
+  <h2>👥 いま遊んでいる人（目安）</h2>
+  <p class="dim">最新の層で、直近5分に死んだ人の数です（見えないIDで数えるので、同じ人は1人）。シインクラッドは数十秒に1回は死ぬので、遊んでいる人数に近い数になります。タイトル画面にいるだけの人や、ほかの層で練習している人は数えていません。1分ごとに読みなおします。</p>
+  <div id="pl-now">読みこみ中…</div>
+  <div class="row"><button id="pl-reload">いま読みなおす</button></div>
+</div>
 <div class="f" id="live">
   <h2>🔴 配信中の人</h2>
   <p class="dim">ここに足した人は、ゲームのタイトルの流れる知らせと「配信先リンク」に出ます。ゲーム中の人にも、生き返るときに知らせが出ます。配信が終わったら「消す」を押してください。</p>
@@ -245,7 +251,26 @@
     try { await login(); await NET.liveAdd(n, u, m); $('lv-out').innerHTML = '<p class="ok">出しました。</p>'; $('lv-n').value = $('lv-u').value = $('lv-m').value = ''; liveList(); }
     catch (e) { $('lv-out').innerHTML = fail(e); }
   };
-  load(); guard(); liveList();
+  // ---------- いま遊んでいる人（目安） ----------
+  async function players() {
+    const box = $('pl-now');
+    try {
+      const open = await NET.rest('sh_open').then(v => v || {});
+      let L = 1; for (const k in open) if (open[k]) L = Math.max(L, Math.min(100, +k + 1));
+      const now = Date.now();
+      const [d5, d60, g60] = await Promise.all([
+        NET.rest('sh_dlog/' + L, { orderBy: 't', startAt: now - 300000 }).then(v => v || {}),
+        NET.rest('sh_dlog/' + L, { orderBy: 't', startAt: now - 3600000 }).then(v => v || {}),
+        NET.rest('sh_grave', { orderBy: 't', startAt: now - 3600000 }).then(v => v || {}),
+      ]);
+      const uniq = o => new Set(Object.values(o).filter(d => d && typeof d.u === 'string').map(d => d.u)).size;
+      const n5 = uniq(d5), n60 = uniq(d60), deaths60 = Object.keys(g60).length;
+      box.innerHTML = `<p>いま第${L}層で遊んでいる人：<b style="font-size:28px">${n5}</b> 人<span class="dim">（直近5分）</span><br>直近1時間に第${L}層で遊んだ人：<b>${n60}</b> 人<br>直近1時間に死んだ数（すべての層）：<b>${deaths60}</b> 人<br><small class="dim">${new Date(now).toLocaleTimeString('ja-JP')} に読みました</small></p>`;
+    } catch (e) { box.innerHTML = fail(e); }
+  }
+  $('pl-reload').onclick = () => players();
+  setInterval(() => { if (!document.hidden) players(); }, 60000);
+  load(); guard(); liveList(); players();
 })();
 </script>
 </body>
