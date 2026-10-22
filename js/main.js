@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '31';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '32';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -157,6 +157,8 @@
     $('fm-play').onclick = () => { modal('floormenu', 0); startFloor(f); };
     $('fm-watch').style.display = cleared ? '' : 'none';
     $('fm-watch').onclick = () => { modal('floormenu', 0); startFloor(f, { watch: true }); };
+    const mm = myRuns()[f]; $('fm-mine').style.display = mm ? '' : 'none';
+    $('fm-mine').onclick = () => { modal('floormenu', 0); S.myLast = null; watchMine(Object.assign({ f, best: true }, mm)); };
     modal('floormenu', 1);
   }
   // =============================================
@@ -182,12 +184,17 @@
     $('game').classList.toggle('watching', S.watch);
     updateHud();
     SND.bgm(lv.theme);
-    if (S.watch) { S.run = new SH.Run(lv, cor); S.run.hazard = () => null; S.cam = 0; view.follow(0, 8, true); loadFirst(true); return; }   // 見るときも仕掛けは動かす（自分は描かない・死なない）
+    if (S.watch) { S.run = new SH.Run(lv, cor); S.run.hazard = () => null; S.cam = 0; view.follow(0, 8, true); $('w-mine').style.display = mineOf(f) ? '' : 'none'; if (opt.mine) { startReplay(opt.mine, true); S.follow = true; } loadFirst(!opt.mine); return; }   // 見るときも仕掛けは動かす（自分は描かない・死なない）
     if (f === 1) $('stone').style.display = ''; else $('stone').style.display = 'none';
     spawn(true);
     if (!ME.tut) { ME.tut = 1; saveMe(); openHow(); }
   }
   // はじめて越えた人の走りを探す。屍の確かめが途中のときは、確かめを続けてから探しなおす（見ている間ずっと）
+  // ---------- 自分の走り ----------
+  //  最速の走りはこの端末に残す（shiin_myrun）。最速でない走りは、タイトルに戻るまでだけ見られる（S.myLast）
+  const myRuns = () => NET.store('shiin_myrun') || {};
+  const mineOf = f => (S.myLast && S.myLast.f === f) ? S.myLast : (myRuns()[f] ? Object.assign({ f, best: true }, myRuns()[f]) : null);
+  function watchMine(m) { startFloor(m.f, { watch: true, mine: m }); }
   async function loadFirst(play) {
     const lv = S.lv; S.firstLoading = true; S.wantReplay = false;
     try {
@@ -205,10 +212,11 @@
     } catch (e) { }
     finally { if (S.lv === lv) { S.firstLoading = false; S.wantReplay = false; } }
   }
-  function startReplay(c) {
+  function startReplay(c, mine) {
     const snap = NET.corParse(c.c, S.lv.w);
     S.replay = { run: new SH.Run(c._lv || S.lv, snap), inp: SH.Rec.parse(c.r), name: c.n, x: c.x };
-    toast(`はじめて越えた「${c.n}」の走り`, '屍は「そのときの屍」です', 2200);
+    if (mine) toast(`あなた「${c.n}」の走り（${(c.k / 120).toFixed(1)}秒）`, c.best ? '最速の走り' : '最速ではないので、タイトルに戻ると消えます', 2600);
+    else toast(`はじめて越えた「${c.n}」の走り`, '屍は「そのときの屍」です', 2200);
   }
   function spawn(first) {
     if (S.nextCor) { S.cor = S.nextCor; S.nextCor = null; }
@@ -314,7 +322,12 @@
     const run = S.run, lv = S.lv, f = lv.f, ticks = run.t;
     SND.se('clear'); SND.bgm(null);
     view.burst(run.p.x + 0.4, run.p.y + 0.4, '#ffe080', 30);
-    const firstHere = !ME.clears[f]; if (!ME.clears[f] || ticks < ME.clears[f]) ME.clears[f] = ticks; ME.best[f] = lv.goal; saveMe();
+    const firstHere = !ME.clears[f], isBest = !ME.clears[f] || ticks < ME.clears[f]; if (isBest) ME.clears[f] = ticks;
+    // 自分の走りを残す（最速ならこの端末に。最速でなければ、タイトルに戻るまで）
+    const mine = { r: S.rec.str(), c: S.startCor, k: ticks, n: S.name };
+    S.myLast = Object.assign({ f, best: isBest }, mine);
+    if (isBest) { const o = myRuns(); o[f] = mine; NET.store('shiin_myrun', o); }
+    $('cl-mnote').textContent = isBest ? '最速の走りとして、この端末に残ります' : '最速ではないので、この映像はタイトルに戻ると削除されます'; ME.best[f] = lv.goal; saveMe();
     const deadN = Math.max((W.stat[f] && W.stat[f].d) || 0, S.cor.size ? [...S.cor.values()].reduce((a, c) => a + c.n, 0) : 0) + S.pending;
     const wasOpen = okFloor(f);
     const isFirst = S.latest && !wasOpen;
@@ -376,6 +389,8 @@
   $('cl-again').onclick = () => { modal('clearbox', 0); SND.bgm(S.lv.theme); spawn(false); };
   $('cl-share').onclick = () => { S.shareMode = 'clear'; openShare(); };
   $('cl-title').onclick = () => { modal('clearbox', 0); toTitle(); };
+  $('cl-mine').onclick = () => { const m = S.myLast; if (!m) return; modal('clearbox', 0); watchMine(m); };
+  $('w-mine').onclick = () => { const m = S.lv && mineOf(S.lv.f); if (m) { startReplay(m, true); S.follow = true; } };
   // ---------- 詰み ----------
   // 詰みのチェック（別の所で計算。使えない端末ではここで）
   let worker = null, wid = 0; const wcb = {};
@@ -537,7 +552,7 @@
   // =============================================
   //  タイトルへ
   // =============================================
-  function toTitle() { S.run = null; S.replay = null; S.watch = false; SND.bgm(null); show('title'); refresh(); }
+  function toTitle() { S.myLast = null; S.run = null; S.replay = null; S.watch = false; SND.bgm(null); show('title'); refresh(); }
   $('g-back').onclick = toTitle;
   $('go-latest').onclick = async () => { SND.unlock(); await getIndex(); startFloor(W.done ? 100 : W.latest, W.done ? { watch: true } : {}); };
   $('go-select').onclick = () => openSelect();

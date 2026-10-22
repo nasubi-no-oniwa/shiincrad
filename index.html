@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=31">
+<link rel="stylesheet" href="css/style.css?v=32">
 </head>
 <body>
 <canvas id="cv"></canvas>
@@ -74,7 +74,7 @@
   <div class="name" id="h-name"></div>
   <button class="stuck" id="b-stuck">詰んだ？</button>
   <button class="stone" id="stone" style="display:none">屍の碑</button>
-  <div class="watchbar"><button class="sub" id="w-replay">はじめて越えた人の走り</button><button class="sub" id="w-free">自由に見る</button><small>← → か、ドラッグで動かせます</small></div>
+  <div class="watchbar"><button class="sub" id="w-replay">はじめて越えた人の走り</button><button class="sub" id="w-mine" style="display:none">自分の走り</button><button class="sub" id="w-free">自由に見る</button><small>← → か、ドラッグで動かせます</small></div>
   <div class="btns"><div id="zL"><button class="b" id="bl" aria-label="左へ">◀</button><button class="b" id="br" aria-label="右へ">▶</button></div><div id="zR"><button class="b j" id="bj" aria-label="ジャンプ">▲<small>ジャンプ</small></button></div></div>
   <div class="loading" id="loading">屍を数えています…</div>
 </section>
@@ -87,6 +87,7 @@
   <h3 id="fm-title"></h3><div id="fm-body"></div>
   <button class="go" id="fm-play">挑む</button><br>
   <button class="sub" id="fm-watch">見る（スペクター）</button>
+  <button class="sub" id="fm-mine" style="display:none">自分の最速の走りを見る</button>
   <button class="sub" id="fm-close">とじる</button>
 </div></div>
 
@@ -95,6 +96,8 @@
   <div class="big" id="cl-big"></div>
   <div class="csub" id="cl-sub"></div>
   <p class="cmsg" id="cl-msg"></p>
+  <button class="sub" id="cl-mine">自分の走りを見なおす</button>
+  <p class="tiny" id="cl-mnote"></p>
   <div id="cl-first" class="first">
     <p>あなたが<b>はじめて越えた人</b>です。<br>到達者の碑に、XのIDを残しますか？（なくてもよい）</p>
     <div class="xin"><span>@</span><input id="cl-xid" maxlength="16" placeholder="IDを入れる" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
@@ -148,13 +151,13 @@
   <button class="go" id="how-close">わかった</button>
 </div></div>
 
-<script src="js/firebase-config.js?v=31"></script>
-<script src="js/engine.js?v=31"></script>
-<script src="js/bosses.js?v=31"></script>
-<script src="js/reach.js?v=31"></script>
-<script src="js/render.js?v=31"></script>
-<script src="js/sound.js?v=31"></script>
-<script src="js/net.js?v=31"></script>
-<script src="js/main.js?v=31"></script>
+<script src="js/firebase-config.js?v=32"></script>
+<script src="js/engine.js?v=32"></script>
+<script src="js/bosses.js?v=32"></script>
+<script src="js/reach.js?v=32"></script>
+<script src="js/render.js?v=32"></script>
+<script src="js/sound.js?v=32"></script>
+<script src="js/net.js?v=32"></script>
+<script src="js/main.js?v=32"></script>
 </body>
 </html>
