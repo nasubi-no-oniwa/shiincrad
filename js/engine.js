@@ -307,7 +307,10 @@
       switch (e.k) {
         case 'crush': if (e.jammed) { if (e.zap && this.lv.f >= ZAP2) return e.zon && e.zb !== null && e.zb !== undefined && this.hitRect(e.x + 0.2, e.zb - 0.5, e.w - 0.4, 1.0, 0.15) ? 'zap' : null; return e.zap && e.zon && this.hitRect(e.x, e.y + e.h, e.w, this.H - e.y - e.h, 0.15) ? 'zap' : null; } return (e.v2 ? e.kill : (e.falling || e.y > e.y0 + 0.05)) && this.hitRect(e.x, e.y, e.w, e.h, 0.12) ? 'crush' : null;
         case 'saw': { const p = this.p, dx = p.x + PW / 2 - e.x, dy = p.y + PH / 2 - e.y, r = (e.rad || 0.5) + 0.3; return dx * dx + dy * dy < r * r ? 'saw' : null; }
-        case 'jet': if (!e.on) return null; return this.hitRect(e.x, e.dir < 0 ? e.y - e.len + 1 : e.y, 1, e.len, 0.15) ? 'fire' : null;
+        case 'jet': if (!e.on) return null;
+          // soft（第87層から）：死ぬ範囲を今までの約4分の3に（当たりは炎の中心の幅4.5割、炎の先の0.35マスは当たらない）
+          if (e.soft && e.dir < 0) return this.hitRect(e.x + 0.275, e.y - e.len + 1.5, 0.45, e.len - 0.65, 0.0001) ? 'fire' : null;
+          return this.hitRect(e.x, e.dir < 0 ? e.y - e.len + 1 : e.y, 1, e.len, 0.15) ? 'fire' : null;
         case 'bolt': return e.on && this.hitRect(Math.floor(e.x), 0, 1, e.yb, 0.1) ? 'bolt' : null;
         case 'rise': return this.p.y + PH * 0.5 > e.y && this.p.x + PW > e.x0 && this.p.x < e.x1 ? 'water' : null;
         case 'walk': if (e.st.dead) return null; return this.hitRect(e.x, e.y, e.w || 0.9, e.h || 0.9, 0.14) ? 'enemy' : null;

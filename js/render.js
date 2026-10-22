@@ -235,7 +235,7 @@
             break;
           }
           case 'saw': { g.save(); g.translate(e.x * S, e.y * S); g.rotate(t * 12); g.fillStyle = '#c8ccd8'; const r = (e.rad || 0.5) * S; for (let k = 0; k < 8; k++) { g.rotate(Math.PI / 4); g.fillRect(-r * 0.15, -r * 1.15, r * 0.3, r * 0.5); } g.beginPath(); g.arc(0, 0, r * 0.85, 0, 7); g.fill(); g.fillStyle = '#555'; g.beginPath(); g.arc(0, 0, r * 0.25, 0, 7); g.fill(); g.restore(); break; }
-          case 'jet': { rect(e.x + 0.15, e.y + 0.6, 0.7, 0.4, '#555'); if (e.warn) { g.globalAlpha = 0.5 * blink; rect(e.x, e.y - e.len + 1, 1, e.len, '#ff8030'); g.globalAlpha = 1; } if (e.on) { for (let k = 0; k < e.len; k++) { rect(e.x + 0.15 + Math.sin(t * 30 + k) * 0.05, e.y - k, 0.7, 1, k % 2 ? '#ffb030' : '#ff5a1a'); } } break; }
+          case 'jet': { rect(e.x + 0.15, e.y + 0.6, 0.7, 0.4, '#555'); if (e.warn) { g.globalAlpha = 0.5 * blink; rect(e.x + 0.15, e.y - e.len + 1, 0.7, e.len, '#ff8030'); g.globalAlpha = 1; } if (e.on) { for (let k = 0; k < e.len; k++) { rect(e.x + 0.15 + Math.sin(t * 30 + k) * 0.05, e.y - k, 0.7, 1, k % 2 ? '#ffb030' : '#ff5a1a'); } } break; }
           case 'bolt': { if (e.warn) { g.globalAlpha = 0.35 * blink; rect(Math.floor(e.x), 0, 1, e.yb, '#fff060'); g.globalAlpha = 1; rect(Math.floor(e.x) - 0.5, 0, 2, 0.6, '#5a5a80'); } if (e.on) { g.strokeStyle = '#fffbd0'; g.lineWidth = S * 0.18; g.beginPath(); let xx = Math.floor(e.x) + 0.5; g.moveTo(xx * S, 0); for (let y = 1; y <= e.yb; y++) { xx = Math.floor(e.x) + 0.5 + (hr(y * 7 + run.t) - 0.5) * 0.6; g.lineTo(xx * S, y * S); } g.stroke(); } break; }
           case 'rise': { g.globalAlpha = 0.55; rect(e.x0, e.y, e.x1 - e.x0, 20, '#2aa8a0'); g.globalAlpha = 1; rect(e.x0, e.y, e.x1 - e.x0, 0.12, '#80fff0'); break; }
           case 'walk': {
