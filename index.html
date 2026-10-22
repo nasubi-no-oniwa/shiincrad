@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=33">
+<link rel="stylesheet" href="css/style.css?v=34">
 </head>
 <body>
 <canvas id="cv"></canvas>
@@ -44,6 +44,7 @@
     </div>
     <div class="row">
       <button class="sub" id="go-how">あそびかた</button>
+      <button class="sub" id="t-end" style="display:none">エンドロール</button>
       <button class="sub" id="b-snd">♪ 音あり</button>
       <button class="sub" id="b-share">投稿する</button>
     </div>
@@ -119,6 +120,14 @@
   <button class="sub" id="gr-close">とじる</button>
 </div></div>
 
+<!-- ========== エンドロール ========== -->
+<div class="ending" id="ending">
+  <canvas id="end-cv"></canvas>
+  <div class="end-roll" id="end-roll"></div>
+  <div class="end-ty" id="end-ty">Thank you for playing</div>
+  <button class="sub end-skip" id="end-skip">とばす</button>
+</div>
+
 <!-- ========== 配信中 ========== -->
 <div class="modal" id="livebox"><div class="card">
   <h3>🔴 配信中</h3>
@@ -161,13 +170,13 @@
   <button class="go" id="how-close">わかった</button>
 </div></div>
 
-<script src="js/firebase-config.js?v=33"></script>
-<script src="js/engine.js?v=33"></script>
-<script src="js/bosses.js?v=33"></script>
-<script src="js/reach.js?v=33"></script>
-<script src="js/render.js?v=33"></script>
-<script src="js/sound.js?v=33"></script>
-<script src="js/net.js?v=33"></script>
-<script src="js/main.js?v=33"></script>
+<script src="js/firebase-config.js?v=34"></script>
+<script src="js/engine.js?v=34"></script>
+<script src="js/bosses.js?v=34"></script>
+<script src="js/reach.js?v=34"></script>
+<script src="js/render.js?v=34"></script>
+<script src="js/sound.js?v=34"></script>
+<script src="js/net.js?v=34"></script>
+<script src="js/main.js?v=34"></script>
 </body>
 </html>

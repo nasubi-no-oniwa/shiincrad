@@ -65,6 +65,7 @@
   ];
   const BOSS_SONG = [158, 'hmin', 52, [0, 1, 0, 6], 'square', 'arp', 1.0, 0.7];
   const GATE_SONG = [150, 'phr', 50, [0, 1, 5, 4], 'sawtooth', 'arp', 1.0, 0.75];
+  const END_SONG = [64, 'maj', 60, [0, 5, 3, 4], 'sine', 'pad', 0.0, 0.3];   // エンドロール：ゆっくり・静か・少しさみしい
   // 旋律は決まった乱数で作る（毎回同じ曲になる）
   function makeSong(def, seed) {
     let s = seed * 9301 + 49297; const R = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
@@ -111,11 +112,11 @@
     const key = String(which); if (key === songKey && timer) return; songKey = key;
     if (timer) { clearInterval(timer); timer = null; }
     if (which === null || which === undefined || !ac) { song = null; S.cur = null; return; }
-    const def = which === 'boss' ? BOSS_SONG : which === 'gate' ? GATE_SONG : SONGS[which % 20];
-    song = makeSong(def, typeof which === 'number' ? which + 3 : which === 'boss' ? 77 : 99); S.cur = which;
+    const def = which === 'boss' ? BOSS_SONG : which === 'gate' ? GATE_SONG : which === 'end' ? END_SONG : SONGS[which % 20];
+    song = makeSong(def, typeof which === 'number' ? which + 3 : which === 'boss' ? 77 : which === 'end' ? 41 : 99); S.cur = which;
     pos = 0; nextT = ac.currentTime + 0.08; schedule(); timer = setInterval(schedule, 60);
   };
-  S.restart = () => { const k = songKey; songKey = ''; S.bgm(k === 'boss' || k === 'gate' ? k : (k === 'null' ? null : Number(k))); };
+  S.restart = () => { const k = songKey; songKey = ''; S.bgm(k === 'boss' || k === 'gate' || k === 'end' ? k : (k === 'null' ? null : Number(k))); };
   // ---------- 効果音 ----------
   S.se = function (k, a) {
     if (!ac || !S.on) return; const t = ac.currentTime, d = seGain;

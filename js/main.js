@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '33';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '34';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -125,6 +125,7 @@
       $('t-road').textContent = g ? Math.min(100, Math.floor(((st.m || 0) / g) * 100)) + '%' : '0%';
       $('t-ldead').textContent = fmt(st.d || 0);
       $('go-latest').textContent = W.done ? '頂をながめる' : `第${L}層に挑む`;
+      $('t-end').style.display = W.done ? '' : 'none';
       // 開いた知らせ（新しい順）
       const news = Object.keys(W.open).map(Number).filter(f => okFloor(f)).map(f => ({ f, o: opener(f) })).sort((a, b) => b.o.t - a.o.t).slice(0, 12);
       const liveTk = LIVE.list.map(x => `🔴 ${esc(x.n)}さんが配信中${x.m ? '（' + esc(x.m) + '）' : ''}`);
@@ -134,6 +135,80 @@
       $('ticker').firstChild.style.animationDuration = Math.max(14, tk.length * 0.22) + 's';
     },
   };
+  // ---------- エンドロール ----------
+  //  数字（かかった時間・みんなの屍）→ 第1〜99層を初めて越えた人 → 第100層（初めて越えた人・最速の人）→ Thank you for playing
+  //  背景には、プレイヤーの箱が雨のように降る
+  const START_T = Date.parse('2026-10-20T18:17:00+09:00');   // 公開した日時
+  async function fastest100() {
+    try {
+      // 越えた記録は操作の記録つきで重いので、まず名前の一覧だけ → かかった時間（k）だけ → 速い順に中身を読んで確かめる
+      const lv = await getLevel(100), [ids, raw, rs] = await Promise.all([NET.rest('sh_clear/100', { shallow: true }).then(v => Object.keys(v || {})), NET.rest('sh_cells/100').then(v => v || {}), NET.rest('sh_reset/100/t').catch(() => null)]);
+      const cells = NET.sanitize(lv, raw), ks = [];
+      for (let i = 0; i < ids.length; i += 24) await Promise.all(ids.slice(i, i + 24).map(id => NET.rest('sh_clear/100/' + id + '/k').then(k => { if (k >= 1) ks.push({ id, k }); }).catch(() => { })));
+      ks.sort((a, b) => a.k - b.k);
+      for (const { id } of ks.slice(0, 15)) { const c = await NET.rest('sh_clear/100/' + id).catch(() => null); if (c && await NET.verifyAsync(lv, c, cells, rs)) return c; }   // にせの記録は飛ばす
+    } catch (e) { }
+    return null;
+  }
+  let endOn = null;
+  // me：クリアした者（{ n, x }）。なければ、自分が前に越えた名前 → 初めて越えた人
+  async function playEnding(me) {
+    if (endOn) return endOn;
+    const box = $('ending'), roll = $('end-roll'), ty = $('end-ty'), cv = $('end-cv');
+    roll.innerHTML = '<p class="e-num">読みこんでいます…</p>'; ty.classList.remove('on'); box.classList.add('on');
+    const wasPaused = S.paused; S.paused = true;
+    SND.unlock(); SND.bgm('end');
+    endOn = new Promise(async done => {
+      let stop = false, raf = 0;
+      const finish = () => { if (stop) return; stop = true; cancelAnimationFrame(raf); box.classList.remove('on'); SND.bgm(null); S.paused = wasPaused; endOn = null; done(); };
+      $('end-skip').onclick = finish;
+      // 背景：箱の雨
+      const g = cv.getContext('2d'), drops = [];
+      const fit = () => { const r = cv.getBoundingClientRect(), d = Math.min(2, window.devicePixelRatio || 1); cv.width = r.width * d; cv.height = r.height * d; g.setTransform(d, 0, 0, d, 0, 0); };
+      fit(); addEventListener('resize', fit);
+      const W0 = () => cv.width / (Math.min(2, window.devicePixelRatio || 1)), H0 = () => cv.height / (Math.min(2, window.devicePixelRatio || 1));
+      const drop = top => { const s = 8 + Math.random() * 16; return { x: Math.random() * W0(), y: top ? -s - Math.random() * H0() : Math.random() * H0(), s, v: 40 + s * 4 + Math.random() * 40, h: Math.floor(Math.random() * 360), a: 0.15 + Math.random() * 0.3 }; };
+      for (let i = 0; i < 70; i++) drops.push(drop(false));
+      // 中身
+      try { if (!W.loaded) { const o = await NET.overview(); W.open = o.open; W.stat = o.stat; W.ckpt = o.ckpt == null ? CK0 : o.ckpt; W.loaded = true; } } catch (e) { }
+      const fast = await fastest100();
+      if (stop) return;
+      const endT = (W.open[100] && W.open[100].t) || NET.now(), span = Math.max(0, endT - START_T), dd = Math.floor(span / 86400000), hh = Math.floor((span % 86400000) / 3600000);
+      let hard = 1, hardD = -1; for (let f = 1; f <= 100; f++) { const d = (W.stat[f] && W.stat[f].d) || 0; if (d > hardD) { hardD = d; hard = f; } }
+      const who = f => { const o = opener(f) || W.open[f]; return o ? `${esc(NET.cleanName(o.n) || '名無し')}${o.x ? ' <small style="display:inline">@' + esc(NET.cleanX(o.x)) + '</small>' : ''}` : '&nbsp;'; };
+      let h = `<p class="e-num">全100層<b>${dd}日${hh}時間</b></p><p class="e-num">みんなの屍<b>${fmt(totalDead())}人</b></p><h3>到達者</h3>`;
+      for (let f = 1; f <= 99; f++) h += `<p class="e-fl"><small>第${f}層${f === hard ? '<em>最難関</em>' : ''}</small>${who(f)}</p>`;
+      h += `<h3>第100層　頂${hard === 100 ? '<em style="font-style:normal;color:#ff8a7a;font-size:13px;margin-left:6px">最難関</em>' : ''}</h3>`;
+      const meW = me && me.n ? `${esc(NET.cleanName(me.n) || '名無し')}${me.x ? ' <small style="display:inline">@' + esc(NET.cleanX(me.x)) + '</small>' : ''}` : who(100);
+      h += `<p class="e-top"><i>クリアした者</i>${meW}</p>`;
+      h += `<p class="e-top"><i>最速</i>${fast ? `${esc(NET.cleanName(fast.n) || '名無し')}${fast.x ? ' <small style="display:inline">@' + esc(NET.cleanX(fast.x)) + '</small>' : ''}　${(fast.k / 120).toFixed(1)}秒` : '&nbsp;'}</p>`;
+      roll.innerHTML = h;
+      // 流す：2分ほどで流れきる
+      const H = () => H0(), RH = roll.offsetHeight, dur = 110000, t0 = performance.now();
+      let tyAt = 0;
+      const frame = now => {
+        if (stop) return;
+        const dt = Math.min(0.05, (now - (frame.last || now)) / 1000); frame.last = now;
+        g.clearRect(0, 0, W0(), H0());
+        for (const d of drops) {
+          d.y += d.v * dt; if (d.y > H0() + 30) Object.assign(d, drop(true), { y: -30 });
+          g.globalAlpha = d.a; const X = Math.round(d.x), Y = Math.round(d.y), s = Math.round(d.s);
+          g.fillStyle = `hsl(${d.h},70%,58%)`; g.fillRect(X, Y, s, s);
+          g.fillStyle = `hsl(${d.h},80%,72%)`; g.fillRect(X, Y, s, Math.max(2, Math.round(s * 0.18)));
+          g.fillStyle = '#1a1520'; const e = Math.max(2, Math.round(s * 0.13)); g.fillRect(X + Math.round(s * 0.55), Y + Math.round(s * 0.38), e, e + 1); g.fillRect(X + Math.round(s * 0.77), Y + Math.round(s * 0.38), e, e + 1);
+        }
+        g.globalAlpha = 1;
+        const p = Math.min(1, (now - t0) / dur);
+        roll.style.transform = `translateY(${Math.round(H() - p * (RH + H()))}px)`;
+        if (p >= 1) { if (!tyAt) { tyAt = now; ty.classList.add('on'); $('end-skip').textContent = 'とじる'; } if (now - tyAt > 9000) return finish(); }
+        raf = requestAnimationFrame(frame);
+      };
+      $('end-skip').textContent = 'とばす';
+      raf = requestAnimationFrame(frame);
+    });
+    return endOn;
+  }
+  $('t-end').onclick = () => { playEnding(ME.end100 ? { n: ME.end100.n, x: NET.store('shiin_xid') || '' } : null).then(() => title.paint()); };
   // ---------- 配信中の人 ----------
   //  タイトルでは開いたときに読む（1分に1回まで）。ゲーム中は、生き返るときに5分に1回だけ読みなおす
   const LIVE = { list: [], at: 0 };
@@ -365,7 +440,7 @@
     $('cl-next').style.display = f < 100 ? '' : 'none';
     $('cl-next').textContent = `第${Math.min(100, f + 1)}層へ`;
     $('cl-msg').textContent = isFirst ? '記録を送っています…' : '';
-    modal('clearbox', 1);
+    if (f !== 100) modal('clearbox', 1);   // 第100層は、エンドロールのあとに出す
     S.clearInfo = { f, name: S.name, ticks, deadN, isFirst };
     // 記録を送る（はじめてなら層が開く）
     try {
@@ -397,6 +472,8 @@
       ci.failed = true; ci.resend = () => NET.clear(lv, ci.name, '', recStr, startCor, ticks, !wasOpen);
       if (isFirst) $('cl-first').style.display = '';   // もう一度送るための「刻む」
     }
+    // 第100層：越えた人は全員、エンドロール → 結果の画面
+    if (f === 100) { ME.end100 = { n: S.name }; saveMe(); computeLatest(); await playEnding({ n: S.name, x: NET.store('shiin_xid') || '' }); modal('clearbox', 1); }
   }
   $('cl-xsave').onclick = async () => {
     const x = NET.cleanX($('cl-xid').value);
