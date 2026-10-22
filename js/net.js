@@ -249,6 +249,16 @@
   };
   async function trust(lv, raw, ms) {
     const f = lv.f, until = Date.now() + (ms || 6000);
+    // 管理人が確認済みにした層（もう越えられた層）は、屍を確かめない（屍の位置だけを使う）
+    //  一番乗りの争いがないので、ずる対策がいらない。死んだ記録・操作の記録を読まないので、通信がとても減る
+    if (N.ckpt != null && f <= N.ckpt) {
+      lv._dvMore = false;
+      const out = {}; let far = 0;
+      for (const k in raw || {}) { if (!raw[k]) continue; out[k] = raw[k]; const x = +k.split('_')[0] + 1; if (x > far) far = x; }
+      lv._verifiedN = Object.keys(out).length;
+      N.far = N.far || {}; N.far[f] = Math.max(N.far[f] || 0, far);
+      return out;
+    }
     // 屍を取り除いた・層を消した合図は、5分に1回だけ見る
     if (!lv._rmAt || Date.now() - lv._rmAt > 300000) { const [rm, rs] = await Promise.all([rest('sh_rm/' + f + '/t').catch(() => null), rest('sh_reset/' + f + '/t').catch(() => null)]); lv._rmKey = (rm || 0) + '_' + (rs || 0); lv._rmAt = Date.now(); }
     // 層の形を直したとき（昔の形が増えたとき）も、確かめをやりなおす（前の形では「にせ」に見えた本物を戻すため）

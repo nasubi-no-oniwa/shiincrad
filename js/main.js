@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '34';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '35';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -48,6 +48,7 @@
   //  ckpt（管理人が確かめた層）までは確かめずに開く。そこから上は、下の層から順に1つずつ確かめる
   const CK0 = 60;   // この版を出したときに確かめ済みの層
   const W = { open: {}, stat: {}, latest: 1, loaded: false, ckpt: CK0 };
+  NET.ckpt = CK0;   // 屍の確かめをしない層（確認済み）
   const okFloor = f => { const o = W.open[f]; if (!o) return false; if (f <= W.ckpt) return true; const v = ME.ok3[f]; return !!(v && v.t === o.t); };
   // その層をはじめて越えた人（確かめた記録の名前。管理人が確かめた層は印のまま）
   const opener = f => { const o = W.open[f]; if (!o || !okFloor(f)) return null; if (f <= W.ckpt) return o; const v = ME.ok3[f]; if (v.mine) return { t: o.t, n: NET.cleanName(o.n) || '名無し', x: NET.cleanX(o.x), id: o.id };   // 確かめ中：ひとまず開いた印の人
@@ -100,7 +101,7 @@
   async function refresh(force) {
     if (!force && W.loaded && Date.now() - refAt < 60000) { computeLatest(); title.paint(); loadLive().then(() => title.paint()).catch(() => { }); return; }
     refAt = Date.now();
-    try { const o = await NET.overview(); W.open = o.open; W.stat = o.stat; W.ckpt = o.ckpt == null ? CK0 : o.ckpt; W.loaded = true; } catch (e) { W.loaded = false; }
+    try { const o = await NET.overview(); W.open = o.open; W.stat = o.stat; W.ckpt = o.ckpt == null ? CK0 : o.ckpt; NET.ckpt = W.ckpt; W.loaded = true; } catch (e) { W.loaded = false; }
     computeLatest(); title.paint();
     loadLive().then(() => title.paint()).catch(() => { });
     if (W.loaded) verifyChain().then(() => { title.paint(); loadFar(); }).catch(() => { });
@@ -170,7 +171,7 @@
       const drop = top => { const s = 8 + Math.random() * 16; return { x: Math.random() * W0(), y: top ? -s - Math.random() * H0() : Math.random() * H0(), s, v: 40 + s * 4 + Math.random() * 40, h: Math.floor(Math.random() * 360), a: 0.15 + Math.random() * 0.3 }; };
       for (let i = 0; i < 70; i++) drops.push(drop(false));
       // 中身
-      try { if (!W.loaded) { const o = await NET.overview(); W.open = o.open; W.stat = o.stat; W.ckpt = o.ckpt == null ? CK0 : o.ckpt; W.loaded = true; } } catch (e) { }
+      try { if (!W.loaded) { const o = await NET.overview(); W.open = o.open; W.stat = o.stat; W.ckpt = o.ckpt == null ? CK0 : o.ckpt; NET.ckpt = W.ckpt; W.loaded = true; } } catch (e) { }
       const fast = await fastest100();
       if (stop) return;
       const endT = (W.open[100] && W.open[100].t) || NET.now(), span = Math.max(0, endT - START_T), dd = Math.floor(span / 86400000), hh = Math.floor((span % 86400000) / 3600000);
