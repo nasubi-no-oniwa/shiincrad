@@ -251,7 +251,8 @@
     const f = lv.f, until = Date.now() + (ms || 6000);
     // 屍を取り除いた・層を消した合図は、5分に1回だけ見る
     if (!lv._rmAt || Date.now() - lv._rmAt > 300000) { const [rm, rs] = await Promise.all([rest('sh_rm/' + f + '/t').catch(() => null), rest('sh_reset/' + f + '/t').catch(() => null)]); lv._rmKey = (rm || 0) + '_' + (rs || 0); lv._rmAt = Date.now(); }
-    const key = lv._rmKey;
+    // 層の形を直したとき（昔の形が増えたとき）も、確かめをやりなおす（前の形では「にせ」に見えた本物を戻すため）
+    const key = lv._rmKey + '_h' + (((N.variants && N.variants[f]) || []).length);
     let st = lv._dv;
     if (!st || st.key !== key) { const c = DV()[f]; st = c && c.key === key ? { key, t: c.t || 0, ti: c.ti || [], P: new Set(c.P || []), cnt: c.cnt || {}, bad: c.bad || {}, far: c.far || 0 } : { key, t: 0, ti: [], P: new Set(), cnt: {}, bad: {}, far: 0 }; lv._dv = st; }
     // 新しい記録（前に確かめた所より後）
