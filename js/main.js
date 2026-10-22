@@ -11,7 +11,7 @@
   const fmt = n => Number(n || 0).toLocaleString('ja-JP');
   const URL_GAME = 'https://nasubi-no-oniwa.github.io/shiincrad/';
   const GY = 11;
-  SH.VER = '30';   // 層のデータを変えたら上げる（古いものを読まないように）
+  SH.VER = '31';   // 層のデータを変えたら上げる（古いものを読まないように）
   // ---------- 名前（毎回ちがう） ----------
   const PRE = ['さびた', '七番目の', '名もなき', 'はぐれ', 'ねむれる', 'しろい', 'くろい', 'ちいさな', 'さいごの', 'まよえる', 'はじめての', 'かけだしの', 'うつろな', 'とおくの', 'ひとりの', 'のろわれた', 'ほこりの', 'わすれられた', 'かなしき', 'あおい', 'あかい', 'みどりの', 'よわきの', 'ほしふる', 'つきなき', 'あさやけの', 'ゆうぐれの', 'こごえた', 'ねぼけた', 'まっすぐな', 'おくびょうな', 'むこうみずな', 'ひかえめな', 'おおぐらいの', 'ふるえる', 'よろめく', 'まがった', 'うたう', 'かぞえる', 'ちりぢりの'];
   const NAME = ['ノルド', 'ミナ', 'カイ', 'ルカ', 'トト', 'ハル', 'シノ', 'ユウ', 'レン', 'アオ', 'ソラ', 'イオ', 'ナギ', 'リク', 'コハ', 'セツ', 'ウタ', 'ロイ', 'マオ', 'キリ', 'ヨミ', 'ツバキ', 'ハク', 'クロ', 'モモ', 'スズ', 'テオ', 'ニコ', 'ヒバリ', 'フウ', '旅人', '剣士', '番兵', '巡礼者', '見習い', '鍛冶屋', '吟遊詩人', '墓守', '学者', '商人', '騎士', '弓兵', '薬師', '漁師'];
@@ -187,9 +187,23 @@
     spawn(true);
     if (!ME.tut) { ME.tut = 1; saveMe(); openHow(); }
   }
+  // はじめて越えた人の走りを探す。屍の確かめが途中のときは、確かめを続けてから探しなおす（見ている間ずっと）
   async function loadFirst(play) {
-    try { const c = await NET.firstClear(S.lv, S.cor, await getVariants(S.lv.f)); S.first = c; if (c && play) startReplay(c); }
-    catch (e) { }
+    const lv = S.lv; S.firstLoading = true; S.wantReplay = false;
+    try {
+      for (;;) {
+        const c = await NET.firstClear(lv, S.cor, await getVariants(lv.f));
+        if (S.lv !== lv || !S.watch) return;
+        if (c) { S.first = c; if (play || S.wantReplay) { startReplay(c); S.follow = true; } return; }
+        if (!NET.more) return;
+        // 屍の確かめの続き（確かめた屍は、見ている画面にも出す）
+        const cells = lv._raw ? await NET.syncCells(lv, new Map()).catch(() => null) : null;
+        if (S.lv !== lv || !S.watch) return;
+        if (cells) S.cor = cells;
+        await new Promise(r => setTimeout(r, 400));
+      }
+    } catch (e) { }
+    finally { if (S.lv === lv) { S.firstLoading = false; S.wantReplay = false; } }
   }
   function startReplay(c) {
     const snap = NET.corParse(c.c, S.lv.w);
@@ -405,7 +419,11 @@
     clearTimeout(pop._t); pop._t = setTimeout(() => { pop.style.display = 'none'; S.pick = null; }, 2400);
   });
   // ---------- 見るモード ----------
-  $('w-replay').onclick = () => { if (S.first) { startReplay(S.first); S.follow = true; } else toast('はじめて越えた記録を確かめられませんでした'); };
+  $('w-replay').onclick = () => {
+    if (S.first) { startReplay(S.first); S.follow = true; }
+    else if (S.firstLoading) { S.wantReplay = true; toast('記録を確かめています', '確かめ終わったら、自動で流れます', 2200); }
+    else toast('はじめて越えた記録を確かめられませんでした');
+  };
   $('w-free').onclick = () => { S.follow = false; };
   // 見るモードはドラッグで動かせる
   let drag = null;
