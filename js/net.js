@@ -412,8 +412,9 @@
   //   ・にせだった記録の時刻を覚えておく（shiin_vc2）。そこより古いものは二度と読まない・計算しない
   const VC = () => store('shiin_vc2') || {};   // 版21で作りなおし（版18〜20は、屍の確かめの途中で本物を外していた）
   N.firstClear = async function (lv, cells, variants) {
-    // 屍の確かめがまだ途中なら、越えた記録は判定しない（始まりの屍が、まだ確かめていない屍を含むことがあるので）。呼んだ側が少しあとで続ける
-    if (lv._dvMore) { N.more = true; return null; }
+    // 版36まで：屍の確かめ（死んだ記録の再生）が全部終わるまで待っていたが、死ぬ人が多いと何分も終わらず、次の層が開かなかった
+    //  いまは、データベースにある屍（形の正しいもの）を「そのときの屍」の確かめに使う。越えた記録そのものは、今までどおり操作を再生して確かめる
+    if (lv._raw) cells = N.sanitize(lv, lv._raw);
     const f = lv.f, rs = await rest('sh_reset/' + f + '/t').catch(() => null);
     const vc = VC(); let cur = vc[f] && vc[f].rs === (rs || 0) ? vc[f].t : 0;
     let budget = 120 * 60 * 120;   // 1回に計算する量（2時間ぶんの動き）。足りなければ N.more を立てて、呼んだ側がすぐ続ける
