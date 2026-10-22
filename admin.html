@@ -71,6 +71,8 @@
   function rleDecode(s, n) { const a = new Uint8Array(n); let i = 0, p = 0; while (p < s.length) { const c = s.charCodeAt(p) - 97; p++; let k = ''; while (p < s.length && s[p] >= '0' && s[p] <= '9') k += s[p++]; const m = k ? +k : 1; a.fill(c, i, i + m); i += m; } return a; }
   async function getLevel(f) {
     const ci = Math.ceil(f / 20); if (!chunks[ci]) chunks[ci] = fetch('levels/l' + ci + '.json?v=' + Date.now()).then(r => r.json());
+    // 直した層の昔の形も、屍の確かめに使う（ゲームと同じ）
+    NET.variants = NET.variants || {}; if (!(f in NET.variants)) NET.variants[f] = await variants(f);
     return decode((await chunks[ci]).find(x => x.f === f));
   }
   function decode(r) {
@@ -183,11 +185,11 @@
     const f = Math.max(1, Math.min(100, Math.floor(+$('g-vf').value || 1))), out = $('g-out');
     out.innerHTML = '<p>確かめています…</p>';
     try {
-      const lv = await getLevel(f); let cells = await NET.loadCells(lv); const vars = await variants(f);
-      // 屍の確かめが終わるまで待つ（途中で判定すると、本物の記録を「にせ」と見てしまう）
-      for (let i = 0; i < 40 && lv._dvMore; i++) { out.innerHTML = `<p>屍を確かめています…（${lv._verifiedN || 0} か所まで）</p>`; await NET.trustCells(lv, lv._raw, 15000); }
-      if (lv._dvMore) { out.innerHTML = '<p class="bad">屍の確かめが終わりませんでした。少し待ってから、もう一度押してください。</p>'; return; }
-      cells = NET.sanitize(lv, await NET.trustCells(lv, lv._raw, 1000));
+      // ゲーム（版37から）と同じ確かめ方：データベースにある屍（形の正しいもの）を「そのときの屍」に使い、越えた記録の操作を再生する
+      //  （前は、屍を1つずつ再生して確かめてから判定していたが、直した層の昔の形を使っていなかったので、本物の記録を「にせ」としていた）
+      const lv = await getLevel(f), vars = await variants(f);
+      lv._raw = await NET.rest('sh_cells/' + f) || {};
+      const cells = NET.sanitize(lv, lv._raw);
       const [all, rs, op] = await Promise.all([NET.rest('sh_clear/' + f), NET.rest('sh_reset/' + f + '/t').catch(() => null), NET.rest('sh_open/' + f)]);
       const list = Object.entries(all || {}).map(([id, c]) => Object.assign({ id }, c)).sort((a, b) => (a.t || 0) - (b.t || 0));
       const good = [], bad = [];
