@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=35">
+<link rel="stylesheet" href="css/style.css?v=36">
 </head>
 <body>
 <canvas id="cv"></canvas>
@@ -170,13 +170,24 @@
   <button class="go" id="how-close">わかった</button>
 </div></div>
 
-<script src="js/firebase-config.js?v=35"></script>
-<script src="js/engine.js?v=35"></script>
-<script src="js/bosses.js?v=35"></script>
-<script src="js/reach.js?v=35"></script>
-<script src="js/render.js?v=35"></script>
-<script src="js/sound.js?v=35"></script>
-<script src="js/net.js?v=35"></script>
-<script src="js/main.js?v=35"></script>
+<script src="js/firebase-config.js?v=36"></script>
+<script src="js/engine.js?v=36"></script>
+<script src="js/bosses.js?v=36"></script>
+<script src="js/reach.js?v=36"></script>
+<script src="js/render.js?v=36"></script>
+<script src="js/sound.js?v=36"></script>
+<script src="js/net.js?v=36"></script>
+<script src="js/main.js?v=36"></script>
+<script>
+// スマホで続けてタップしたときに、画面が拡大されないようにする（iPhoneは「拡大しない」の設定を無視するため）
+(function () {
+  let last = 0;
+  const isText = t => t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+  document.addEventListener('touchend', e => { const now = Date.now(); if (now - last < 350 && !isText(e.target)) e.preventDefault(); last = now; }, { passive: false });
+  document.addEventListener('dblclick', e => { if (!isText(e.target)) e.preventDefault(); }, { passive: false });
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+  document.addEventListener('touchmove', e => { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
+})();
+</script>
 </body>
 </html>
