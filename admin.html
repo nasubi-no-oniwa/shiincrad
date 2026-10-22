@@ -79,7 +79,9 @@
     const floors = Object.keys(rep || {}).filter(k => rep[k]).map(Number).sort((a, b) => a - b);
     let latest = 1; for (const k in open) if (open[k]) latest = Math.max(latest, Math.min(100, +k + 1));
     box.innerHTML = `<p>いまの最新の層：<b>第${latest}層</b>　知らせのある層：${floors.length ? floors.map(f => '第' + f + '層').join('、') : 'なし'}</p>`;
-    for (const f of floors) box.appendChild(card(f, rep[f], stat[f] || {}, f === latest));
+    // 最新の層は、知らせがなくてもいちばん上に出す
+    box.appendChild(card(latest, rep[latest], stat[latest] || {}, true));
+    for (const f of floors) if (f !== latest) box.appendChild(card(f, rep[f], stat[f] || {}, false));
   }
   function card(f, reps, st, isLatest) {
     const list = Object.values(reps || {}), auto = list.filter(r => r.a).length, mx = Math.max(0, ...list.map(r => r.m || 0)), last = Math.max(0, ...list.map(r => r.t || 0));
