@@ -56,12 +56,10 @@
 </div>
 <div class="row"><span>層を直接しらべる</span><input id="fno" type="number" min="1" max="100" value="1" style="width:80px"><button id="look">しらべる</button><button id="spec">スペクターで見る</button></div>
 <div id="list"><p>読みこみ中…</p></div>
-<script src="js/firebase-config.js?v=38"></script>
-<script src="js/engine.js?v=38"></script>
-<script src="js/bosses.js?v=38"></script>
-<script src="js/reach.js?v=38"></script>
-<script src="js/render.js?v=38"></script>
-<script src="js/net.js?v=38"></script>
+<script>
+// 管理画面は、毎回いちばん新しい計算（engine.js など）を読む（古いものが残っていると、本物の記録を「にせ」と判定してしまうため）
+(function () { const v = Date.now(); for (const f of ['firebase-config', 'engine', 'bosses', 'reach', 'render', 'net']) document.write('<script src="js/' + f + '.js?v=' + v + '"><\/script>'); })();
+</script>
 <script>
 (function () {
   const SH = window.SH, NET = SH.NET, T = SH.T, $ = id => document.getElementById(id);
@@ -77,7 +75,7 @@
   }
   function decode(r) {
     const f = r.f;
-    return { f, name: r.n, theme: Math.ceil(f / 5) - 1, w: r.w, h: 16, tiles: rleDecode(r.t, r.w * 16), cap: Int8Array.from(r.c.split('').map(Number)), ents: r.e, goal: r.g, boss: r.b, need: r.need, start: { x: 2.1, y: 11 - SH.PHYS.PH } };
+    return { f, name: r.n, theme: Math.ceil(f / 5) - 1, w: r.w, h: 16, tiles: rleDecode(r.t, r.w * 16), cap: Int8Array.from(r.c.split('').map(Number)), ents: r.e, goal: r.g, boss: r.b, q: r.q, dark: r.dk, cave: r.cv, need: r.need, start: { x: 2.1, y: 11 - SH.PHYS.PH } };
   }
   async function load() {
     const box = $('list'); box.innerHTML = '<p>読みこみ中…</p>';
