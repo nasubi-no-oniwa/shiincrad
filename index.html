@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=38">
+<link rel="stylesheet" href="css/style.css?v=39">
 </head>
 <body>
 <canvas id="cv"></canvas>
@@ -123,7 +123,10 @@
 <!-- ========== エンドロール ========== -->
 <div class="ending" id="ending">
   <canvas id="end-cv"></canvas>
+  <canvas id="end-rp" aria-label="最初に頂を越えた人の動き"></canvas>
+  <div class="end-cap" id="end-cap"></div>
   <div class="end-roll" id="end-roll"></div>
+  <div class="end-card" id="end-card"></div>
   <div class="end-ty" id="end-ty">Thank you for playing</div>
   <button class="sub end-skip" id="end-skip">とばす</button>
 </div>
@@ -170,14 +173,14 @@
   <button class="go" id="how-close">わかった</button>
 </div></div>
 
-<script src="js/firebase-config.js?v=38"></script>
-<script src="js/engine.js?v=38"></script>
-<script src="js/bosses.js?v=38"></script>
-<script src="js/reach.js?v=38"></script>
-<script src="js/render.js?v=38"></script>
-<script src="js/sound.js?v=38"></script>
-<script src="js/net.js?v=38"></script>
-<script src="js/main.js?v=38"></script>
+<script src="js/firebase-config.js?v=39"></script>
+<script src="js/engine.js?v=39"></script>
+<script src="js/bosses.js?v=39"></script>
+<script src="js/reach.js?v=39"></script>
+<script src="js/render.js?v=39"></script>
+<script src="js/sound.js?v=39"></script>
+<script src="js/net.js?v=39"></script>
+<script src="js/main.js?v=39"></script>
 <script>
 // スマホで続けてタップしたときに、画面が拡大されないようにする（iPhoneは「拡大しない」の設定を無視するため）
 (function () {

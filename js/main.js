@@ -137,8 +137,9 @@
     },
   };
   // ---------- エンドロール ----------
-  //  数字（かかった時間・みんなの屍）→ 第1〜99層を初めて越えた人 → 第100層（初めて越えた人・最速の人）→ Thank you for playing
-  //  背景には、プレイヤーの箱が雨のように降る
+  //  1. 数字（かかった時間・みんなの屍）→ 第1〜99層を初めて越えた人が流れる。流れるのに合わせて、その層で死んだ数だけ箱の屍が降って積もる
+  //  2. 第100層：最初に頂を越えた人の、本当の動きを再生する
+  //  3. クリアした者・最速 → 4. あなたの記録 → Thank you for playing
   const START_T = Date.parse('2026-10-20T18:17:00+09:00');   // 公開した日時
   async function fastest100() {
     try {
@@ -147,65 +148,180 @@
       const cells = NET.sanitize(lv, raw), ks = [];
       for (let i = 0; i < ids.length; i += 24) await Promise.all(ids.slice(i, i + 24).map(id => NET.rest('sh_clear/100/' + id + '/k').then(k => { if (k >= 1) ks.push({ id, k }); }).catch(() => { })));
       ks.sort((a, b) => a.k - b.k);
-      for (const { id } of ks.slice(0, 15)) { const c = await NET.rest('sh_clear/100/' + id).catch(() => null); if (c && await NET.verifyAsync(lv, c, cells, rs)) return c; }   // にせの記録は飛ばす
+      for (const { id } of ks.slice(0, 15)) { const c = await NET.rest('sh_clear/100/' + id).catch(() => null); if (c && await NET.verifyAsync(lv, c, cells, rs)) { c._lv = lv; return c; } }   // にせの記録は飛ばす
+    } catch (e) { }
+    return null;
+  }
+  // 最初に頂を越えた人の記録（再生用）。どの版の層で越えたかを、操作をやりなおして決める
+  async function first100() {
+    try {
+      const o = opener(100) || W.open[100]; if (!o || !o.id) return null;
+      const c = await NET.rest('sh_clear/100/' + o.id); if (!c || typeof c.r !== 'string') return null;
+      const lv = await getLevel(100), vs = await getVariants(100);
+      for (const L of [lv].concat(vs)) { const snap = NET.corParse(c.c, L.w); if (await NET.verifyAsync(L, c, snap, null)) { c._lv = L; return c; } }
     } catch (e) { }
     return null;
   }
   let endOn = null;
-  // me：クリアした者（{ n, x }）。なければ、自分が前に越えた名前 → 初めて越えた人
+  // me：クリアした者（{ n, x }）。なければ、初めて越えた人
   async function playEnding(me) {
     if (endOn) return endOn;
-    const box = $('ending'), roll = $('end-roll'), ty = $('end-ty'), cv = $('end-cv');
-    roll.innerHTML = '<p class="e-num">読みこんでいます…</p>'; ty.classList.remove('on'); box.classList.add('on');
+    const box = $('ending'), roll = $('end-roll'), ty = $('end-ty'), cv = $('end-cv'), rp = $('end-rp'), card = $('end-card'), cap = $('end-cap');
+    roll.innerHTML = '<p class="e-num">読みこんでいます…</p>'; roll.style.transform = ''; roll.style.opacity = '';
+    ty.classList.remove('on'); rp.classList.remove('on'); card.innerHTML = ''; cap.innerHTML = ''; cap.classList.remove('on');
+    box.classList.add('on');
     const wasPaused = S.paused; S.paused = true;
     SND.unlock(); SND.bgm('end');
     endOn = new Promise(async done => {
       let stop = false, raf = 0;
       const finish = () => { if (stop) return; stop = true; cancelAnimationFrame(raf); box.classList.remove('on'); SND.bgm(null); S.paused = wasPaused; endOn = null; done(); };
-      $('end-skip').onclick = finish;
-      // 背景：箱の雨
-      const g = cv.getContext('2d'), drops = [];
-      const fit = () => { const r = cv.getBoundingClientRect(), d = Math.min(2, window.devicePixelRatio || 1); cv.width = r.width * d; cv.height = r.height * d; g.setTransform(d, 0, 0, d, 0, 0); };
-      fit(); addEventListener('resize', fit);
-      const W0 = () => cv.width / (Math.min(2, window.devicePixelRatio || 1)), H0 = () => cv.height / (Math.min(2, window.devicePixelRatio || 1));
-      const drop = top => { const s = 8 + Math.random() * 16; return { x: Math.random() * W0(), y: top ? -s - Math.random() * H0() : Math.random() * H0(), s, v: 40 + s * 4 + Math.random() * 40, h: Math.floor(Math.random() * 360), a: 0.15 + Math.random() * 0.3 }; };
-      for (let i = 0; i < 70; i++) drops.push(drop(false));
-      // 中身
+      $('end-skip').onclick = finish; $('end-skip').textContent = 'とばす';
+      const wait = ms => new Promise(r => { const t0 = performance.now(); const k = () => { if (stop || performance.now() - t0 >= ms) r(); else setTimeout(k, 50); }; k(); });
+      // ---- 画面の大きさ ----
+      const D = Math.min(2, window.devicePixelRatio || 1), r0 = cv.getBoundingClientRect(), WW = Math.max(200, r0.width), HH = Math.max(300, r0.height);
+      cv.width = Math.round(WW * D); cv.height = Math.round(HH * D);
+      const g = cv.getContext('2d'); g.setTransform(D, 0, 0, D, 0, 0); g.imageSmoothingEnabled = false;
+      // 積もった箱は別の絵に焼きつける（何百個あっても軽い）
+      const pile = document.createElement('canvas'); pile.width = cv.width; pile.height = cv.height; const pg = pile.getContext('2d'); pg.setTransform(D, 0, 0, D, 0, 0);
+      const bs = Math.max(12, Math.min(22, Math.round(WW / 24))), C = Math.floor(WW / bs), ox = Math.floor((WW - C * bs) / 2);
+      const rowsMax = Math.max(4, Math.floor(HH * 0.40 / bs)), hgt = new Int16Array(C);
+      const falling = [], fresh = [], dust = [], queue = [];
+      let shake = 0, glowTop = 0, pileOn = 1;
+      const stars = []; for (let i = 0; i < 70; i++) stars.push([Math.random() * WW, Math.random() * HH * 0.6, Math.random() * 7]);
+      const RNAME = () => NAME[Math.floor(Math.random() * NAME.length)] + Math.floor(Math.random() * 999);
+      // 箱（屍）。k：0〜1 明るさ（降ってきたばかりは生きていたときの色）
+      const drawBox = (c, X, Y, w, name, k) => {
+        const h = SH.hue(name), sat = 28 + 42 * k, li = 42 + 16 * k;
+        c.fillStyle = `hsl(${h},${sat}%,${li}%)`; c.fillRect(X, Y, w, w);
+        c.fillStyle = `hsl(${h},${sat + 8}%,${li + 12}%)`; c.fillRect(X, Y, w, Math.max(2, Math.round(w * 0.18)));
+        c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(X, Y + w - Math.max(2, Math.round(w * 0.14)), w, Math.max(2, Math.round(w * 0.14)));
+        c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(X + w - 1, Y, 1, w);
+        const e = Math.max(1.5, w * 0.12), ey = Y + w * 0.42; c.strokeStyle = '#1a1520'; c.lineWidth = Math.max(1.2, w * 0.08);
+        c.beginPath(); for (const cx of [X + w * 0.32, X + w * 0.68]) { c.moveTo(cx - e, ey - e); c.lineTo(cx + e, ey + e); c.moveTo(cx + e, ey - e); c.lineTo(cx - e, ey + e); } c.stroke();
+      };
+      // 箱を1つ降らせる：低い列をえらぶ
+      const drop = (name, big) => {
+        let col = -1, best = 1e9;
+        for (let i = 0; i < 2; i++) { const c = Math.floor(Math.random() * C); if (hgt[c] < best) { best = hgt[c]; col = c; } }
+        if (hgt[col] >= rowsMax + 3) return;
+        const ty2 = HH - (hgt[col] + 1) * bs; hgt[col]++;
+        falling.push({ x: ox + col * bs, y: -bs - Math.random() * (big ? 120 : 40), vy: big ? 300 : 60 + Math.random() * 80, ty: ty2, name, big });
+      };
+      const land = b => {
+        fresh.push({ x: b.x, y: b.ty, name: b.name, t: 1 });
+        for (let i = 0; i < 4; i++) dust.push({ x: b.x + bs / 2, y: b.ty + bs, vx: (Math.random() - .5) * 70, vy: -Math.random() * 50, life: .5 });
+        if (b.big) shake = Math.max(shake, 5);
+      };
+      // ---- 中身を読む ----
       try { if (!W.loaded) { const o = await NET.overview(); W.open = o.open; W.stat = o.stat; W.ckpt = o.ckpt == null ? CK0 : o.ckpt; NET.ckpt = W.ckpt; W.loaded = true; } } catch (e) { }
-      const fast = await fastest100();
+      try { await getIndex(); } catch (e) { }
+      const fastP = fastest100(), firstP = first100();   // 流れている間に、うしろで読んで確かめる
       if (stop) return;
       const endT = (W.open[100] && W.open[100].t) || NET.now(), span = Math.max(0, endT - START_T), dd = Math.floor(span / 86400000), hh = Math.floor((span % 86400000) / 3600000);
-      let hard = 1, hardD = -1; for (let f = 1; f <= 100; f++) { const d = (W.stat[f] && W.stat[f].d) || 0; if (d > hardD) { hardD = d; hard = f; } }
-      const who = f => { const o = opener(f) || W.open[f]; return o ? `${esc(NET.cleanName(o.n) || '名無し')}${o.x ? ' <small style="display:inline">@' + esc(NET.cleanX(o.x)) + '</small>' : ''}` : '&nbsp;'; };
+      let hard = 1, hardD = -1, Dsum = 0; const dOf = f => (W.stat[f] && W.stat[f].d) || 0;
+      for (let f = 1; f <= 100; f++) { const d = dOf(f); Dsum += d; if (d > hardD) { hardD = d; hard = f; } }
+      const nameOf = o => `${esc(NET.cleanName(o.n) || '名無し')}${o.x ? ' <small style="display:inline">@' + esc(NET.cleanX(o.x)) + '</small>' : ''}`;
+      const who = f => { const o = opener(f) || W.open[f]; return o ? nameOf(o) : '&nbsp;'; };
       let h = `<p class="e-num">全100層<b>${dd}日${hh}時間</b></p><p class="e-num">みんなの屍<b>${fmt(totalDead())}人</b></p><h3>到達者</h3>`;
-      for (let f = 1; f <= 99; f++) h += `<p class="e-fl"><small>第${f}層${f === hard ? '<em>最難関</em>' : ''}</small>${who(f)}</p>`;
-      h += `<h3>第100層　頂${hard === 100 ? '<em style="font-style:normal;color:#ff8a7a;font-size:13px;margin-left:6px">最難関</em>' : ''}</h3>`;
-      const meW = me && me.n ? `${esc(NET.cleanName(me.n) || '名無し')}${me.x ? ' <small style="display:inline">@' + esc(NET.cleanX(me.x)) + '</small>' : ''}` : who(100);
-      h += `<p class="e-top"><i>クリアした者</i>${meW}</p>`;
-      h += `<p class="e-top"><i>最速</i>${fast ? `${esc(NET.cleanName(fast.n) || '名無し')}${fast.x ? ' <small style="display:inline">@' + esc(NET.cleanX(fast.x)) + '</small>' : ''}　${(fast.k / 120).toFixed(1)}秒` : '&nbsp;'}</p>`;
+      for (let f = 1; f <= 99; f++) h += `<p class="e-fl" data-f="${f}"><small>第${f}層　${esc((INDEX && INDEX[f - 1] && INDEX[f - 1].n) || '')}${f === hard ? '<em>最難関</em>' : ''}</small>${who(f)}</p>`;
       roll.innerHTML = h;
-      // 流す：2分ほどで流れきる
-      const H = () => H0(), RH = roll.offsetHeight, dur = 110000, t0 = performance.now();
-      let tyAt = 0;
+      // 層ごとに降らせる数（全部で画面の下40％がうまるくらい）
+      const budget = C * rowsMax, nOf = f => { const d = dOf(f); return d <= 0 ? 0 : Math.max(1, Math.round(budget * d / Math.max(1, Dsum))); };
+      const marks = [...roll.querySelectorAll('.e-fl')].map(el => ({ f: +el.dataset.f, y: el.offsetTop, done: false }));
+      // ---- 毎こま ----
+      const H = HH, RH = roll.offsetHeight, dur = 100000;
+      let phase = 'roll', t0 = performance.now(), last = t0, R = null, rv = null, rpSpd = 1, rpDone = null;
       const frame = now => {
         if (stop) return;
-        const dt = Math.min(0.05, (now - (frame.last || now)) / 1000); frame.last = now;
-        g.clearRect(0, 0, W0(), H0());
-        for (const d of drops) {
-          d.y += d.v * dt; if (d.y > H0() + 30) Object.assign(d, drop(true), { y: -30 });
-          g.globalAlpha = d.a; const X = Math.round(d.x), Y = Math.round(d.y), s = Math.round(d.s);
-          g.fillStyle = `hsl(${d.h},70%,58%)`; g.fillRect(X, Y, s, s);
-          g.fillStyle = `hsl(${d.h},80%,72%)`; g.fillRect(X, Y, s, Math.max(2, Math.round(s * 0.18)));
-          g.fillStyle = '#1a1520'; const e = Math.max(2, Math.round(s * 0.13)); g.fillRect(X + Math.round(s * 0.55), Y + Math.round(s * 0.38), e, e + 1); g.fillRect(X + Math.round(s * 0.77), Y + Math.round(s * 0.38), e, e + 1);
+        const dt = Math.min(0.05, (now - last) / 1000); last = now;
+        // 空
+        g.setTransform(D, 0, 0, D, 0, 0);
+        const sky = g.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#07060a'); sky.addColorStop(.55, '#120d1c'); sky.addColorStop(1, '#241a30'); g.fillStyle = sky; g.fillRect(0, 0, WW, H);
+        for (const s of stars) { g.fillStyle = `rgba(255,240,210,${.25 + .35 * Math.abs(Math.sin(now / 900 + s[2]))})`; g.fillRect(Math.round(s[0]), Math.round(s[1]), 2, 2); }
+        // 名前を流す
+        if (phase === 'roll') {
+          const p = Math.min(1, (now - t0) / dur), y = Math.round(H - p * (RH + H));
+          roll.style.transform = `translateY(${y}px)`;
+          for (const m of marks) if (!m.done && m.y + y < H * 0.58) {
+            m.done = true; const n = nOf(m.f), big = m.f === hard, gap = big ? 18 : Math.min(70, 1400 / Math.max(1, n));
+            const o = opener(m.f) || W.open[m.f]; const nm0 = o ? NET.cleanName(o.n) || '名無し' : RNAME();
+            for (let i = 0; i < n; i++) queue.push({ at: now + i * gap + Math.random() * 30, name: i === 0 ? nm0 : RNAME(), big });
+            if (big) { glowTop = 1; SND.se('quake'); }
+          }
+          if (p >= 1) phase = 'after';
         }
-        g.globalAlpha = 1;
-        const p = Math.min(1, (now - t0) / dur);
-        roll.style.transform = `translateY(${Math.round(H() - p * (RH + H()))}px)`;
-        if (p >= 1) { if (!tyAt) { tyAt = now; ty.classList.add('on'); $('end-skip').textContent = 'とじる'; } if (now - tyAt > 9000) return finish(); }
+        while (queue.length && queue[0].at <= now) { const q = queue.shift(); drop(q.name, q.big); }
+        queue.sort((a, b) => a.at - b.at);
+        // 箱の山
+        let sx = 0, sy = 0; if (shake > 0) { sx = (Math.random() - .5) * shake; sy = (Math.random() - .5) * shake; shake = Math.max(0, shake - dt * 20); }
+        g.save(); g.translate(Math.round(sx), Math.round(sy)); g.globalAlpha = pileOn;
+        g.setTransform(1, 0, 0, 1, Math.round(sx * D), Math.round(sy * D)); g.drawImage(pile, 0, 0); g.setTransform(D, 0, 0, D, Math.round(sx * D), Math.round(sy * D));
+        { const sh2 = g.createLinearGradient(0, H - rowsMax * bs, 0, H); sh2.addColorStop(0, 'rgba(7,6,10,0)'); sh2.addColorStop(1, 'rgba(7,6,10,.55)'); g.fillStyle = sh2; g.fillRect(0, H - (rowsMax + 3) * bs, WW, (rowsMax + 3) * bs); }
+        for (let i = fresh.length - 1; i >= 0; i--) { const b = fresh[i]; b.t -= dt * 0.8; if (b.t <= 0) { drawBox(pg, b.x, b.y, bs, b.name, 0); fresh.splice(i, 1); continue; } drawBox(g, b.x, b.y, bs, b.name, b.t); g.fillStyle = `rgba(255,240,180,${b.t * .35})`; g.fillRect(b.x, b.y, bs, bs); }
+        for (let i = falling.length - 1; i >= 0; i--) { const b = falling[i]; b.vy += 1500 * dt; b.y += b.vy * dt; if (b.y >= b.ty) { b.y = b.ty; land(b); falling.splice(i, 1); continue; } drawBox(g, b.x, Math.round(b.y), bs, b.name, 1); }
+        for (let i = dust.length - 1; i >= 0; i--) { const d = dust[i]; d.life -= dt; if (d.life <= 0) { dust.splice(i, 1); continue; } d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 200 * dt; g.fillStyle = `rgba(230,220,200,${d.life})`; g.fillRect(Math.round(d.x), Math.round(d.y), 2, 2); }
+        // 山の上のふちが光る（最難関・クリアした者のとき）
+        if (glowTop > 0) {
+          let top = H; for (let c = 0; c < C; c++) top = Math.min(top, H - hgt[c] * bs);
+          const gr = g.createLinearGradient(0, top - 60, 0, H); gr.addColorStop(0, 'rgba(255,210,90,0)'); gr.addColorStop(.25, `rgba(255,210,90,${.35 * glowTop})`); gr.addColorStop(1, 'rgba(255,210,90,0)');
+          g.globalCompositeOperation = 'lighter'; g.fillStyle = gr; g.fillRect(0, top - 60, WW, H - top + 60); g.globalCompositeOperation = 'source-over';
+          if (phase === 'roll') glowTop = Math.max(0, glowTop - dt * .5);
+        }
+        g.restore(); g.globalAlpha = 1;
+        // 再生
+        if (R && rv) {
+          if (!R.run.over) {
+            let n = Math.round(120 * dt * rpSpd); while (n-- > 0 && !R.run.over) { R.run.step(R.inp(R.run.t + 1)); R.run.events.length = 0; }
+            if (R.run.over && rpDone) { if (R.run.clear) { rv.burst(R.run.p.x + .4, R.run.p.y + .4, '#ffd25a', 40); rv.ring(R.run.p.x + .4, R.run.p.y + .4, '#fff'); } rpDone(R.run.clear); }
+          }
+          rv.follow(R.run.p.x, R.run.p.y);
+          rv.draw({ run: R.run, cor: R.run.cor, name: R.name, showPlayer: true });
+          $('end-time').textContent = (R.run.t / 120).toFixed(1) + '秒';
+        }
         raf = requestAnimationFrame(frame);
       };
-      $('end-skip').textContent = 'とばす';
       raf = requestAnimationFrame(frame);
+      // ---- 2. 第100層 ----
+      while (phase === 'roll' && !stop) await wait(200);
+      await wait(1500); if (stop) return;
+      const ix100 = INDEX && INDEX[99];
+      const showCard = async (html, ms) => { card.innerHTML = `<div class="ec in">${html}</div>`; await wait(ms); if (stop) return; card.firstChild.classList.remove('in'); card.firstChild.classList.add('out'); await wait(700); card.innerHTML = ''; };
+      await showCard(`<p class="ec-k">第100層</p><p class="ec-n">${esc(ix100 ? ix100.n : '頂')}</p><p class="ec-s">${fmt(dOf(100))}人が、ここで眠る</p>`, 3200); if (stop) return;
+      // 最初に越えた人の動き（確かめが終わるのを少し待つ）
+      const c1 = await Promise.race([firstP, wait(9000).then(() => null)]); if (stop) return;
+      const cr = c1 || await Promise.race([fastP, wait(4000).then(() => null)]); if (stop) return;
+      if (cr && cr._lv) {
+        const L = cr._lv;
+        rv = new SH.View(rp); rp.classList.add('on'); rv.resize(); rv.setLevel(L);
+        R = { run: new SH.Run(L, NET.corParse(cr.c, L.w)), inp: SH.Rec.parse(cr.r), name: NET.cleanName(cr.n) || '名無し' };
+        rv.follow(R.run.p.x, R.run.p.y, true);
+        rpSpd = Math.max(1, Math.min(6, (cr.k / 120) / 40));
+        cap.innerHTML = `<small>${c1 ? '最初に頂を越えた者' : '最速で頂を越えた者'}</small><b>${nameOf(cr)}</b><span>そのときの屍 ${fmt(NET.corParse(cr.c, L.w).size)}個${rpSpd > 1.05 ? `　×${rpSpd.toFixed(1)}` : ''}　<i id="end-time">0.0秒</i></span>`;
+        cap.classList.add('on'); pileOn = .35;
+        await new Promise(res => { rpDone = res; const chk = () => { if (stop) res(false); else setTimeout(chk, 200); }; chk(); });
+        if (stop) return;
+        SND.se('clear'); await wait(2600); if (stop) return;
+        rp.classList.remove('on'); cap.classList.remove('on'); await wait(1000); R = null; rv = null;
+      }
+      pileOn = 1;
+      // ---- 3. クリアした者・最速 ----
+      const fast = await Promise.race([fastP, wait(6000).then(() => null)]); if (stop) return;
+      const meW = me && me.n ? nameOf(me) : who(100);
+      glowTop = 1; SND.se('open');
+      await showCard(`<p class="ec-k">第100層　頂</p><p class="ec-t">クリアした者</p><p class="ec-n">${meW}</p><p class="ec-t" style="margin-top:22px">最速</p><p class="ec-n small">${fast ? `${nameOf(fast)}<br><span>${(fast.k / 120).toFixed(1)}秒</span>` : '&nbsp;'}</p>`, 6500); if (stop) return;
+      // ---- 4. あなたの記録 ----
+      const clr = Object.keys(ME.clears || {}).map(Number).filter(f => f >= 1), far = Math.max(0, ...clr, ...Object.keys(ME.best || {}).map(Number).filter(f => f >= 1));
+      if (ME.dead > 0 || clr.length) {
+        card.innerHTML = `<div class="ec in"><p class="ec-k">あなたの記録</p><div class="ec-me"><p><small>あなたの屍</small><b data-n="${ME.dead}">0</b><i>人</i></p><p><small>越えた層</small><b data-n="${clr.length}">0</b><i>層</i></p><p><small>いちばん高く</small><b>第${far}層</b></p></div><p class="ec-s">あなたの屍も、だれかの足場になった</p></div>`;
+        const els = card.querySelectorAll('b[data-n]'), t1 = performance.now();
+        while (!stop && performance.now() - t1 < 1600) { const k = Math.min(1, (performance.now() - t1) / 1500), e2 = 1 - Math.pow(1 - k, 3); for (const el of els) el.textContent = fmt(Math.round(+el.dataset.n * e2)); await wait(30); }
+        for (const el of els) el.textContent = fmt(+el.dataset.n);
+        await wait(5000); if (stop) return;
+        if (card.firstChild) { card.firstChild.classList.remove('in'); card.firstChild.classList.add('out'); } await wait(700); card.innerHTML = '';
+      }
+      // ---- 5. おわり ----
+      ty.classList.add('on'); $('end-skip').textContent = 'とじる';
+      await wait(10000); finish();
     });
     return endOn;
   }
