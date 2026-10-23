@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=39">
+<link rel="stylesheet" href="css/style.css?v=40">
 </head>
 <body>
 <canvas id="cv"></canvas>
@@ -113,6 +113,16 @@
   <button class="sub" id="cl-title">タイトルへ</button>
 </div></div>
 
+<!-- ========== 第100層：エンドロールに載せる名前 ========== -->
+<div class="modal" id="namebox"><div class="card clear">
+  <div class="big">全100層 制覇</div>
+  <p class="cmsg">エンドロールに載せる名前<br><small>（あなたの画面にだけ出ます）</small></p>
+  <input id="nm-name" class="nmin" maxlength="12" autocomplete="off" spellcheck="false" aria-label="エンドロールに載せる名前">
+  <div class="xin"><span>@</span><input id="nm-xid" maxlength="16" placeholder="XのID（なくてもよい）" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+  <p class="tiny" id="nm-err"></p>
+  <button class="go" id="nm-ok">エンドロールへ</button>
+</div></div>
+
 <!-- ========== 碑 ========== -->
 <div class="modal" id="grave"><div class="card wide">
   <div class="tabs"><button data-t="dead">屍の碑</button><button data-t="hero">到達者の碑</button></div>
@@ -173,14 +183,14 @@
   <button class="go" id="how-close">わかった</button>
 </div></div>
 
-<script src="js/firebase-config.js?v=39"></script>
-<script src="js/engine.js?v=39"></script>
-<script src="js/bosses.js?v=39"></script>
-<script src="js/reach.js?v=39"></script>
-<script src="js/render.js?v=39"></script>
-<script src="js/sound.js?v=39"></script>
-<script src="js/net.js?v=39"></script>
-<script src="js/main.js?v=39"></script>
+<script src="js/firebase-config.js?v=40"></script>
+<script src="js/engine.js?v=40"></script>
+<script src="js/bosses.js?v=40"></script>
+<script src="js/reach.js?v=40"></script>
+<script src="js/render.js?v=40"></script>
+<script src="js/sound.js?v=40"></script>
+<script src="js/net.js?v=40"></script>
+<script src="js/main.js?v=40"></script>
 <script>
 // スマホで続けてタップしたときに、画面が拡大されないようにする（iPhoneは「拡大しない」の設定を無視するため）
 (function () {

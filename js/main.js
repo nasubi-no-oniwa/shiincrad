@@ -590,7 +590,24 @@
       if (isFirst) $('cl-first').style.display = '';   // もう一度送るための「刻む」
     }
     // 第100層：越えた人は全員、エンドロール → 結果の画面
-    if (f === 100) { ME.end100 = { n: S.name }; saveMe(); computeLatest(); await playEnding({ n: S.name, x: NET.store('shiin_xid') || '' }); modal('clearbox', 1); }
+    if (f === 100) { const who = await askEndName(S.name); ME.end100 = { n: who.n }; saveMe(); computeLatest(); await playEnding(who); modal('clearbox', 1); }
+  }
+  // 第100層を越えた人：エンドロールに載せる名前を入れる（その人の画面にだけ出る）
+  const NG = ['しね', '死ね', '氏ね', 'ころす', '殺す', 'きちがい', '基地外', 'がいじ', 'ちんこ', 'ちんぽ', 'まんこ', 'せっくす', 'れいぷ', 'fuck', 'shit', 'bitch', 'nigger', 'nigga', 'cunt', 'whore', 'slut'];
+  const ngNorm = s => String(s || '').normalize('NFKC').toLowerCase().replace(/[\u30a1-\u30f6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60)).replace(/[\s.,、。・!！?？ー_*-]/g, '');
+  function askEndName(def) {
+    return new Promise(res => {
+      $('nm-name').value = NET.cleanName(def) || ''; $('nm-xid').value = NET.store('shiin_xid') || ''; $('nm-err').textContent = '';
+      modal('namebox', 1); setTimeout(() => $('nm-name').focus(), 50);
+      $('nm-ok').onclick = () => {
+        const n = NET.cleanName($('nm-name').value.trim()), xr = $('nm-xid').value.trim().replace(/^@/, ''), x = xr ? NET.cleanX(xr) : '';
+        if (!n) { $('nm-err').textContent = '名前を入れてください'; return; }
+        if (NG.some(w => ngNorm(n).includes(ngNorm(w)))) { $('nm-err').textContent = 'その名前は使えません'; return; }
+        if (xr && !x) { $('nm-err').textContent = 'XのIDの形がちがいます（英数字と _ で15文字まで）'; return; }
+        if (x) NET.store('shiin_xid', x);
+        modal('namebox', 0); res({ n, x });
+      };
+    });
   }
   $('cl-xsave').onclick = async () => {
     const x = NET.cleanX($('cl-xid').value);
@@ -668,7 +685,7 @@
   addEventListener('pointerup', () => { drag = null; });
   // ---------- 操作 ----------
   const KM = { ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r', ArrowUp: 'j', KeyW: 'j', Space: 'j', KeyZ: 'j' };
-  addEventListener('keydown', e => { const k = KM[e.code]; if (k && $('game').classList.contains('on')) { S.keys[k] = 1; e.preventDefault(); SND.unlock(); } if (e.code === 'Escape' && $('game').classList.contains('on')) toTitle(); });
+  addEventListener('keydown', e => { if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return; const k = KM[e.code]; if (k && $('game').classList.contains('on')) { S.keys[k] = 1; e.preventDefault(); SND.unlock(); } if (e.code === 'Escape' && $('game').classList.contains('on')) toTitle(); });
   addEventListener('keyup', e => { const k = KM[e.code]; if (k) S.keys[k] = 0; });
   addEventListener('blur', () => { S.keys.l = S.keys.r = S.keys.j = 0; if (typeof padRelease === 'function') padRelease(); });
 
