@@ -1585,10 +1585,10 @@
   "아직 아무도 없다"
  ],
  "tags": [
-  "#シインクラッド #gamedev #ゲーム制作",
-  "#SHIINCRAD #シインクラッド #gamedev #indiegame",
-  "#SHIINCRAD #シインクラッド #gamedev #獨立遊戲",
-  "#SHIINCRAD #シインクラッド #gamedev #인디게임"
+  "#シインクラッド",
+  "#SHIINCRAD #シインクラッド",
+  "#SHIINCRAD #シインクラッド",
+  "#SHIINCRAD #シインクラッド"
  ],
  "sh_clear": [
   "{d}人の屍を超えて、第{f}層突破！\n名前は「{n}」{s}\n誰か続いてくれ！",
