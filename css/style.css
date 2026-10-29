@@ -187,3 +187,16 @@ b { font-weight: 400; color: var(--gold); }
 /* ---- 第100層の名前 ---- */
 .nmin { display: block; width: 100%; margin: 10px 0 8px; padding: 10px 12px; font: 22px 'DotGothic16', monospace; text-align: center; color: var(--gold); background: #0c0a10; border: 2px solid var(--line); }
 #nm-err { color: #ff8a7a; min-height: 1.2em; }
+
+/* ことばの切りかえ */
+.langs{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:14px}
+.langs button{font:13px 'DotGothic16',monospace;background:rgba(20,18,28,.7);color:#cfc6b8;border:2px solid var(--line);padding:4px 12px;cursor:pointer}
+.langs button[aria-pressed="true"]{background:var(--gold);color:#14121c;border-color:var(--gold)}
+/* 韓国語：DotGothic16 にハングルがないので、ハングルだけ Do Hyeon で */
+html[data-lang="ko"] body, html[data-lang="ko"] button, html[data-lang="ko"] input, html[data-lang="ko"] .nmin, html[data-lang="ko"] .shtext{font-family:'DotGothic16','Do Hyeon',monospace}
+/* 日本語以外の題字（ローマ字） */
+html:not([data-lang="ja"]) .tmain h1{letter-spacing:.04em;font-size:clamp(34px, 10vw, 52px)}
+/* 韓国語は単語の途中で折り返さない */
+html[data-lang="ko"] body{word-break:keep-all;overflow-wrap:anywhere}
+/* 日本語以外：知らせの2行目が1行目の幅で細かく折れないように */
+html:not([data-lang="ja"]) .toast{width:max-content;max-width:94vw;white-space:normal}

@@ -5,6 +5,13 @@
 //   越えた：「○人の屍を超えて、第○層突破！」。はじめて越えた人はXのIDを残せる
 // =============================================
 (function (G) {
+  // ことば（T はタイルの名前で使っているので tr）
+  const tr = (k, v) => G.I18N.t(k, v);
+  const ln = n => { if (!n) return n; const k = 'N_' + n, s = tr(k); return s === k ? n : s; };   // 層・番人の名前（表示だけ）
+  const anon = n => n === '名無し' ? tr('anon') : n;   // 名前がないときの表示（データはそのまま）
+  const sec = s => tr('sec', { s });
+  const LOC = () => ({ ja: 'ja-JP', en: 'en-US', zh: 'zh-TW', ko: 'ko-KR' }[G.I18N.lang] || 'ja-JP');
+  const FF = () => G.I18N.lang === 'ko' ? "DotGothic16, 'Do Hyeon', monospace" : 'DotGothic16, monospace';   // 投稿画像の字
   const SH = G.SH, T = SH.T, NET = SH.NET, SND = SH.SND, PW = SH.PHYS.PW, PH = SH.PHYS.PH;
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -120,17 +127,17 @@
   const title = {
     paint() {
       const L = W.latest, ix = INDEX && INDEX[L - 1];
-      $('t-latest').innerHTML = W.done ? '全100層　制覇' : `第<b>${L}</b>層　${esc(ix ? ix.n : '')}`;
+      $('t-latest').innerHTML = W.done ? tr('all_done') : tr('fl_b', { n: L }) + (ix && ix.n ? tr('sp') + esc(ln(ix.n)) : '');
       $('t-total').textContent = fmt(totalDead());
       const g = ix ? ix.g : 0, st = shownStat(L, g);
       $('t-road').textContent = g ? Math.min(100, Math.floor(((st.m || 0) / g) * 100)) + '%' : '0%';
       $('t-ldead').textContent = fmt(st.d || 0);
-      $('go-latest').textContent = W.done ? '頂をながめる' : `第${L}層に挑む`;
+      $('go-latest').textContent = W.done ? tr('view_summit') : tr('challenge', { n: L });
       $('t-end').style.display = W.done ? '' : 'none';
       // 開いた知らせ（新しい順）
       const news = Object.keys(W.open).map(Number).filter(f => okFloor(f)).map(f => ({ f, o: opener(f) })).sort((a, b) => b.o.t - a.o.t).slice(0, 12);
-      const liveTk = LIVE.list.map(x => `🔴 ${esc(x.n)}さんが配信中${x.m ? '（' + esc(x.m) + '）' : ''}`);
-      const tk0 = news.length ? news.map(({ f, o }) => `${ago(o.t)}　第${f + 1 > 100 ? 100 : f + 1}層が開いた ── 第${f}層を越えたのは「${esc(o.n)}」${o.x ? '（@' + esc(o.x) + '）' : ''}`).join('　　◆　　') : 'まだだれも第1層を越えていない。最初の屍になれ。';
+      const liveTk = LIVE.list.map(x => tr('tk_live', { n: esc(x.n) }) + (x.m ? tr('paren', { m: esc(x.m) }) : ''));
+      const tk0 = news.length ? news.map(({ f, o }) => tr('tk_open', { a: ago(o.t), n: f + 1 > 100 ? 100 : f + 1, f, w: esc(anon(o.n)) }) + (o.x ? tr('paren', { m: '@' + esc(o.x) }) : '')).join('　　◆　　') : tr('tk_none');
       const tk = liveTk.concat([tk0]).join('　　◆　　');
       $('ticker').innerHTML = `<span>${tk}</span>`;
       $('ticker').firstChild.style.animationDuration = Math.max(14, tk.length * 0.22) + 's';
@@ -167,7 +174,7 @@
   async function playEnding(me) {
     if (endOn) return endOn;
     const box = $('ending'), roll = $('end-roll'), ty = $('end-ty'), cv = $('end-cv'), rp = $('end-rp'), card = $('end-card'), cap = $('end-cap');
-    roll.innerHTML = '<p class="e-num">読みこんでいます…</p>'; roll.style.transform = ''; roll.style.opacity = '';
+    roll.innerHTML = '<p class="e-num">' + tr('loading2') + '</p>'; roll.style.transform = ''; roll.style.opacity = '';
     ty.classList.remove('on'); rp.classList.remove('on'); card.innerHTML = ''; cap.innerHTML = ''; cap.classList.remove('on');
     box.classList.add('on');
     const wasPaused = S.paused; S.paused = true;
@@ -175,7 +182,7 @@
     endOn = new Promise(async done => {
       let stop = false, raf = 0;
       const finish = () => { if (stop) return; stop = true; cancelAnimationFrame(raf); box.classList.remove('on'); SND.bgm(null); S.paused = wasPaused; endOn = null; done(); };
-      $('end-skip').onclick = finish; $('end-skip').textContent = 'とばす';
+      $('end-skip').onclick = finish; $('end-skip').textContent = tr('skip');
       const wait = ms => new Promise(r => { const t0 = performance.now(); const k = () => { if (stop || performance.now() - t0 >= ms) r(); else setTimeout(k, 50); }; k(); });
       // ---- 画面の大きさ ----
       const D = Math.min(2, window.devicePixelRatio || 1), r0 = cv.getBoundingClientRect(), WW = Math.max(200, r0.width), HH = Math.max(300, r0.height);
@@ -220,10 +227,10 @@
       const endT = (W.open[100] && W.open[100].t) || NET.now(), span = Math.max(0, endT - START_T), dd = Math.floor(span / 86400000), hh = Math.floor((span % 86400000) / 3600000);
       let hard = 1, hardD = -1, Dsum = 0; const dOf = f => (W.stat[f] && W.stat[f].d) || 0;
       for (let f = 1; f <= 100; f++) { const d = dOf(f); Dsum += d; if (d > hardD) { hardD = d; hard = f; } }
-      const nameOf = o => `${esc(NET.cleanName(o.n) || '名無し')}${o.x ? ' <small style="display:inline">@' + esc(NET.cleanX(o.x)) + '</small>' : ''}`;
+      const nameOf = o => `${esc(anon(NET.cleanName(o.n) || '名無し'))}${o.x ? ' <small style="display:inline">@' + esc(NET.cleanX(o.x)) + '</small>' : ''}`;
       const who = f => { const o = opener(f) || W.open[f]; return o ? nameOf(o) : '&nbsp;'; };
-      let h = `<p class="e-num">全100層<b>${dd}日${hh}時間</b></p><p class="e-num">みんなの屍<b>${fmt(totalDead())}人</b></p><h3>到達者</h3>`;
-      for (let f = 1; f <= 99; f++) h += `<p class="e-fl" data-f="${f}"><small>第${f}層　${esc((INDEX && INDEX[f - 1] && INDEX[f - 1].n) || '')}${f === hard ? '<em>最難関</em>' : ''}</small>${who(f)}</p>`;
+      let h = `<p class="e-num">${tr('e_all')}<b>${tr('dh', { d: dd, h: hh })}</b></p><p class="e-num">${tr('e_dead')}<b>${tr('people', { n: fmt(totalDead()) })}</b></p><h3>${tr('e_hero')}</h3>`;
+      for (let f = 1; f <= 99; f++) h += `<p class="e-fl" data-f="${f}"><small>${tr('fl', { n: f })}${INDEX && INDEX[f - 1] && INDEX[f - 1].n ? tr('sp') + esc(ln(INDEX[f - 1].n)) : ''}${f === hard ? '<em>' + tr('hardest') + '</em>' : ''}</small>${who(f)}</p>`;
       roll.innerHTML = h;
       // 層ごとに降らせる数（全部で画面の下40％がうまるくらい）
       const budget = C * rowsMax, nOf = f => { const d = dOf(f); return d <= 0 ? 0 : Math.max(1, Math.round(budget * d / Math.max(1, Dsum))); };
@@ -276,7 +283,7 @@
           }
           rv.follow(R.run.p.x, R.run.p.y);
           rv.draw({ run: R.run, cor: R.run.cor, name: R.name, showPlayer: true });
-          $('end-time').textContent = (R.run.t / 120).toFixed(1) + '秒';
+          $('end-time').textContent = sec((R.run.t / 120).toFixed(1));
         }
         raf = requestAnimationFrame(frame);
       };
@@ -286,7 +293,7 @@
       await wait(1500); if (stop) return;
       const ix100 = INDEX && INDEX[99];
       const showCard = async (html, ms) => { card.innerHTML = `<div class="ec in">${html}</div>`; await wait(ms); if (stop) return; card.firstChild.classList.remove('in'); card.firstChild.classList.add('out'); await wait(700); card.innerHTML = ''; };
-      await showCard(`<p class="ec-k">第100層</p><p class="ec-n">${esc(ix100 ? ix100.n : '頂')}</p><p class="ec-s">${fmt(dOf(100))}人が、ここで眠る</p>`, 3200); if (stop) return;
+      await showCard(`<p class="ec-k">${tr('fl', { n: 100 })}</p><p class="ec-n">${esc(ix100 ? ln(ix100.n) : tr('summit'))}</p><p class="ec-s">${tr('sleep_here', { n: fmt(dOf(100)) })}</p>`, 3200); if (stop) return;
       // 最初に越えた人の動き（確かめが終わるのを少し待つ）
       const c1 = await Promise.race([firstP, wait(9000).then(() => null)]); if (stop) return;
       const cr = c1 || await Promise.race([fastP, wait(4000).then(() => null)]); if (stop) return;
@@ -296,7 +303,7 @@
         R = { run: new SH.Run(L, NET.corParse(cr.c, L.w)), inp: SH.Rec.parse(cr.r), name: NET.cleanName(cr.n) || '名無し' };
         rv.follow(R.run.p.x, R.run.p.y, true);
         rpSpd = Math.max(1, Math.min(6, (cr.k / 120) / 40));
-        cap.innerHTML = `<small>${c1 ? '最初に頂を越えた者' : '最速で頂を越えた者'}</small><b>${nameOf(cr)}</b><span>そのときの屍 ${fmt(NET.corParse(cr.c, L.w).size)}個${rpSpd > 1.05 ? `　×${rpSpd.toFixed(1)}` : ''}　<i id="end-time">0.0秒</i></span>`;
+        cap.innerHTML = `<small>${c1 ? tr('first_top') : tr('fast_top')}</small><b>${nameOf(cr)}</b><span>${tr('corpses_then', { n: fmt(NET.corParse(cr.c, L.w).size) })}${rpSpd > 1.05 ? `　×${rpSpd.toFixed(1)}` : ''}　<i id="end-time">${sec('0.0')}</i></span>`;
         cap.classList.add('on'); pileOn = .35;
         await new Promise(res => { rpDone = res; const chk = () => { if (stop) res(false); else setTimeout(chk, 200); }; chk(); });
         if (stop) return;
@@ -308,11 +315,11 @@
       const fast = await Promise.race([fastP, wait(6000).then(() => null)]); if (stop) return;
       const meW = me && me.n ? nameOf(me) : who(100);
       glowTop = 1; SND.se('open');
-      await showCard(`<p class="ec-k">第100層　頂</p><p class="ec-t">クリアした者</p><p class="ec-n">${meW}</p><p class="ec-t" style="margin-top:22px">最速</p><p class="ec-n small">${fast ? `${nameOf(fast)}<br><span>${(fast.k / 120).toFixed(1)}秒</span>` : '&nbsp;'}</p>`, 6500); if (stop) return;
+      await showCard(`<p class="ec-k">${tr('fl', { n: 100 })}${tr('sp')}${tr('summit')}</p><p class="ec-t">${tr('cleared_by')}</p><p class="ec-n">${meW}</p><p class="ec-t" style="margin-top:22px">${tr('fastest')}</p><p class="ec-n small">${fast ? `${nameOf(fast)}<br><span>${sec((fast.k / 120).toFixed(1))}</span>` : '&nbsp;'}</p>`, 6500); if (stop) return;
       // ---- 4. あなたの記録 ----
       const clr = Object.keys(ME.clears || {}).map(Number).filter(f => f >= 1), far = Math.max(0, ...clr, ...Object.keys(ME.best || {}).map(Number).filter(f => f >= 1));
       if (ME.dead > 0 || clr.length) {
-        card.innerHTML = `<div class="ec in"><p class="ec-k">あなたの記録</p><div class="ec-me"><p><small>あなたの屍</small><b data-n="${ME.dead}">0</b><i>人</i></p><p><small>越えた層</small><b data-n="${clr.length}">0</b><i>層</i></p><p><small>いちばん高く</small><b>第${far}層</b></p></div><p class="ec-s">あなたの屍も、だれかの足場になった</p></div>`;
+        card.innerHTML = `<div class="ec in"><p class="ec-k">${tr('my_rec')}</p><div class="ec-me"><p><small>${tr('my_dead')}</small><b data-n="${ME.dead}">0</b><i>${tr('unit_p')}</i></p><p><small>${tr('my_clr')}</small><b data-n="${clr.length}">0</b><i>${tr('unit_f')}</i></p><p><small>${tr('highest')}</small><b>${tr('fl', { n: far })}</b></p></div><p class="ec-s">${tr('my_foot')}</p></div>`;
         const els = card.querySelectorAll('b[data-n]'), t1 = performance.now();
         while (!stop && performance.now() - t1 < 1600) { const k = Math.min(1, (performance.now() - t1) / 1500), e2 = 1 - Math.pow(1 - k, 3); for (const el of els) el.textContent = fmt(Math.round(+el.dataset.n * e2)); await wait(30); }
         for (const el of els) el.textContent = fmt(+el.dataset.n);
@@ -320,7 +327,7 @@
         if (card.firstChild) { card.firstChild.classList.remove('in'); card.firstChild.classList.add('out'); } await wait(700); card.innerHTML = '';
       }
       // ---- 5. おわり ----
-      ty.classList.add('on'); $('end-skip').textContent = 'とじる';
+      ty.classList.add('on'); $('end-skip').textContent = tr('close2');
       await wait(10000); finish();
     });
     return endOn;
@@ -336,10 +343,10 @@
     paintLive(); return LIVE.list;
   }
   function paintLive() { const on = LIVE.list.length > 0; $('t-live').style.display = on ? '' : 'none'; $('g-live').style.display = on ? '' : 'none'; }
-  const liveHost = u => { try { const h = new URL(u).hostname.replace(/^www\./, ''); return /youtu/.test(h) ? 'YouTube' : /twitch/.test(h) ? 'Twitch' : /nicovideo|nico\.ms/.test(h) ? 'ニコニコ' : /twitcasting/.test(h) ? 'ツイキャス' : /tiktok/.test(h) ? 'TikTok' : /(x|twitter)\.com/.test(h) ? 'X' : h; } catch (e) { return ''; } };
+  const liveHost = u => { try { const h = new URL(u).hostname.replace(/^www\./, ''); return /youtu/.test(h) ? 'YouTube' : /twitch/.test(h) ? 'Twitch' : /nicovideo|nico\.ms/.test(h) ? tr('niconico') : /twitcasting/.test(h) ? tr('twitcas') : /tiktok/.test(h) ? 'TikTok' : /(x|twitter)\.com/.test(h) ? 'X' : h; } catch (e) { return ''; } };
   function openLive() {
     const L = LIVE.list;
-    $('live-list').innerHTML = L.length ? L.map(x => `<a href="${esc(x.u)}" target="_blank" rel="noopener noreferrer"><b>${esc(x.n)}</b> さん　<span>${esc(liveHost(x.u))}</span>${x.m ? `<small>${esc(x.m)}</small>` : ''}</a>`).join('') : '<p>いまは配信中の人はいません。</p>';
+    $('live-list').innerHTML = L.length ? L.map(x => `<a href="${esc(x.u)}" target="_blank" rel="noopener noreferrer">${tr('live_who', { n: esc(x.n) })}　<span>${esc(liveHost(x.u))}</span>${x.m ? `<small>${esc(x.m)}</small>` : ''}</a>`).join('') : '<p>' + tr('no_live') + '</p>';
     modal('livebox', 1); if ($('game').classList.contains('on')) S.paused = true;
   }
   $('t-live').onclick = () => openLive();
@@ -348,9 +355,9 @@
   function checkLiveInGame() {
     if (Date.now() - LIVE.at < 300000) return;
     const before = new Set(LIVE.list.map(x => x.id));
-    loadLive(true).then(list => { const nw = list.filter(x => !before.has(x.id)); if (nw.length && S.run && $('game').classList.contains('on')) toast(`🔴 ${nw[0].n}さんが配信を始めました`, '右上の🔴から見に行けます', 2800); }).catch(() => { });
+    loadLive(true).then(list => { const nw = list.filter(x => !before.has(x.id)); if (nw.length && S.run && $('game').classList.contains('on')) toast(tr('live_start', { n: nw[0].n }), tr('live_sub'), 2800); }).catch(() => { });
   }
-  function ago(t) { const s = Math.max(0, (NET.now() - t) / 1000); if (s < 60) return 'たった今'; if (s < 3600) return Math.floor(s / 60) + '分前'; if (s < 86400) return Math.floor(s / 3600) + '時間前'; return Math.floor(s / 86400) + '日前'; }
+  function ago(t) { const s = Math.max(0, (NET.now() - t) / 1000); if (s < 60) return tr('just_now'); if (s < 3600) return tr('min_ago', { n: Math.floor(s / 60) }); if (s < 86400) return tr('hr_ago', { n: Math.floor(s / 3600) }); return tr('day_ago', { n: Math.floor(s / 86400) }); }
   // =============================================
   //  層をえらぶ
   // =============================================
@@ -360,19 +367,19 @@
     for (let f = 1; f <= 100; f++) {
       const ix = idx[f - 1], st = W.stat[f] || {}, open = f <= L, cleared = f < L || (f === 100 && W.done);
       const el = document.createElement('button'); el.className = 'fl' + (open ? '' : ' lock') + (f % 25 === 0 ? ' gate' : f % 5 === 0 ? ' boss' : '') + (f === L && !W.done ? ' now' : '');
-      el.innerHTML = `<b>${f}</b><small>${open ? esc(ix.n) : '？？？'}</small>${open ? `<i>屍 ${fmt(st.d || 0)}</i>` : ''}${ME.clears[f] ? '<u>越</u>' : ''}`;
+      el.innerHTML = `<b>${f}</b><small>${open ? esc(ln(ix.n)) : '？？？'}</small>${open ? `<i>${tr('h_dead')} ${fmt(st.d || 0)}</i>` : ''}${ME.clears[f] ? '<u>' + tr('clr_mark') + '</u>' : ''}`;
       if (open) el.onclick = () => floorMenu(f, cleared);
       box.appendChild(el);
-      if (f % 5 === 0 && f < 100) { const hr = document.createElement('div'); hr.className = 'tier'; hr.textContent = '── ' + (idx[f] ? idx[f].n : '') + ' ──'; box.appendChild(hr); }
+      if (f % 5 === 0 && f < 100) { const hr = document.createElement('div'); hr.className = 'tier'; hr.textContent = '── ' + (idx[f] ? ln(idx[f].n) : '') + ' ──'; box.appendChild(hr); }
     }
     const cur = box.querySelector('.now'); if (cur) cur.scrollIntoView({ block: 'center' });
   }
   async function floorMenu(f, cleared) {
     const ix = (await getIndex())[f - 1], st = shownStat(f, ix.g);
-    $('fm-title').innerHTML = `第${f}層　${esc(ix.n)}`;
+    $('fm-title').innerHTML = tr('fl', { n: f }) + tr('sp') + esc(ln(ix.n));
     const open = opener(f);
-    $('fm-body').innerHTML = `<p>死んだ数 <b>${fmt(st.d || 0)}</b>　越えた人 <b>${fmt(st.f || 0)}</b><br>道ができた <b>${Math.min(100, Math.floor(((st.m || 0) / ix.g) * 100))}%</b>${ix.b ? `<br>番人：<b>${esc(ix.b)}</b>` : ''}${open ? `<br>はじめて越えた人：<b>${esc(open.n)}</b>${open.x ? ' @' + esc(open.x) : ''}` : ''}${ME.clears[f] ? `<br>あなたの記録：<b>${(ME.clears[f] / 120).toFixed(1)}秒</b>` : ''}</p>`;
-    $('fm-play').textContent = f === W.latest && !W.done ? '挑む（最新の層）' : '練習する';
+    $('fm-body').innerHTML = `<p>${tr('fm_dead')} <b>${fmt(st.d || 0)}</b>　${tr('fm_clr')} <b>${fmt(st.f || 0)}</b><br>${tr('road')} <b>${Math.min(100, Math.floor(((st.m || 0) / ix.g) * 100))}%</b>${ix.b ? `<br>${tr('warden_c')}<b>${esc(ln(ix.b))}</b>` : ''}${open ? `<br>${tr('first_c')}<b>${esc(anon(open.n))}</b>${open.x ? ' @' + esc(open.x) : ''}` : ''}${ME.clears[f] ? `<br>${tr('my_c')}<b>${sec((ME.clears[f] / 120).toFixed(1))}</b>` : ''}</p>`;
+    $('fm-play').textContent = f === W.latest && !W.done ? tr('play_latest') : tr('practice_do');
     $('fm-play').onclick = () => { modal('floormenu', 0); startFloor(f); };
     $('fm-watch').style.display = cleared ? '' : 'none';
     $('fm-watch').onclick = () => { modal('floormenu', 0); startFloor(f, { watch: true }); };
@@ -391,15 +398,15 @@
     SND.unlock(); if (!opt.watch) NET.warm();   // 書きこむ前に、見えないIDをもらっておく
     show('game'); $('loading').classList.add('on');
     let lv, cor;
-    try { lv = await getLevel(f); } catch (e) { $('loading').classList.remove('on'); toast('読みこめませんでした', '電波のよいところでもう一度'); show('title'); return; }
-    try { cor = await NET.loadCells(lv); } catch (e) { cor = new Map(); toast('みんなの屍を読みこめませんでした', 'この端末の分だけで遊べます', 2600); }
+    try { lv = await getLevel(f); } catch (e) { $('loading').classList.remove('on'); toast(tr('load_fail'), tr('load_fail_sub')); show('title'); return; }
+    try { cor = await NET.loadCells(lv); } catch (e) { cor = new Map(); toast(tr('cells_fail'), tr('cells_fail_sub'), 2600); }
     $('loading').classList.remove('on');
     S.lv = lv; S.cor = cor; S.nextCor = null; S.watch = !!opt.watch; S.latest = f === W.latest && !W.done;
     S.since = ME.seen[f] || 0; ME.seen[f] = NET.now(); saveMe();
     S.deathsHere = 0; S.reported = 0; S.best = ME.best[f] || 0; S.ghost = null; S.replay = null; S.first = null;
     view.setLevel(lv); view.resize();
-    $('h-floor').textContent = f; $('h-fname').textContent = lv.name;
-    $('h-mode').textContent = S.watch ? '見る' : (S.latest ? '' : '練習');
+    $('h-floor').textContent = f; $('h-fname').textContent = ln(lv.name); $('h-time').textContent = sec('0.0');
+    $('h-mode').textContent = S.watch ? tr('watch') : (S.latest ? '' : tr('practice'));
     $('game').classList.toggle('watching', S.watch);
     updateHud();
     SND.bgm(lv.theme);
@@ -434,8 +441,8 @@
   function startReplay(c, mine) {
     const snap = NET.corParse(c.c, S.lv.w);
     S.replay = { run: new SH.Run(c._lv || S.lv, snap), inp: SH.Rec.parse(c.r), name: c.n, x: c.x };
-    if (mine) toast(`あなた「${c.n}」の走り（${(c.k / 120).toFixed(1)}秒）`, c.best ? '最速の走り' : '最速ではないので、タイトルに戻ると消えます', 2600);
-    else toast(`はじめて越えた「${c.n}」の走り`, '屍は「そのときの屍」です', 2200);
+    if (mine) toast(tr('my_run_t', { n: c.n, s: sec((c.k / 120).toFixed(1)) }), c.best ? tr('fastest_run') : tr('not_fast'), 2600);
+    else toast(tr('first_run_t', { n: anon(c.n) }), tr('first_run_sub'), 2200);
   }
   function spawn(first) {
     if (S.nextCor) { S.cor = S.nextCor; S.nextCor = null; }
@@ -484,11 +491,11 @@
     // 見るモードで「越えた人の走り」を流している間は、その走りの仕掛け（同じ時刻の動き）を描く
     const R = S.replay, showRun = S.watch && R && !R.run.over ? R.run : run, showCor = showRun === run ? S.cor : R.run.cor;
     view.draw({ run: showRun, cor: showCor, name: S.name, since: S.since, pick: S.pick, ghost: S.ghost, showPlayer: !S.watch });
-    if (run && !S.watch && !run.over) { $('h-time').textContent = (run.t / 120).toFixed(1) + '秒'; if (run.p.maxX > S.best) { S.best = run.p.maxX; updateHud(); } }
+    if (run && !S.watch && !run.over) { $('h-time').textContent = sec((run.t / 120).toFixed(1)); if (run.p.maxX > S.best) { S.best = run.p.maxX; updateHud(); } }
     // 番人の曲
     if (run && !S.watch) { const bs = run.ents.find(e => e.k === 'boss'); const want = bs && bs.st.on !== undefined && !run.over ? (S.lv.q ? 'gate' : 'boss') : S.lv.theme; if (SND.cur !== want) SND.bgm(want); }
   }
-  function stepReplay() { const R = S.replay; if (!R || R.run.over) return; R.run.step(R.inp(R.run.t + 1)); if (R.run.over && S.watch) { toast(R.run.clear ? `「${R.name}」 ゴール！` : '記録はここまで'); } }
+  function stepReplay() { const R = S.replay; if (!R || R.run.over) return; R.run.step(R.inp(R.run.t + 1)); if (R.run.over && S.watch) { toast(R.run.clear ? tr('goal_t', { n: anon(R.name) }) : tr('rec_end')); } }
   function handleEvents(run) {
     for (const e of run.events) {
       switch (e.k) {
@@ -496,10 +503,10 @@
         case 'land': SND.se('land'); break;
         case 'crush': SND.se('crush'); view.shake = Math.max(view.shake, 0.4); break;
         case 'bolt': SND.se('bolt'); view.shake = Math.max(view.shake, 0.5); break;
-        case 'zap': if (Math.abs(e.a - run.p.x) < 14) { SND.se('zap'); if (!S.zapTip && !S.watch) { S.zapTip = 1; if (S.lv.f >= SH.ZAP2) toast('電気の梯子', '電気の玉が下りてきて消えたら、すぐ昇れ', 2600); else toast('電気の梯子', '黄色く光ったら、電気が流れる', 2200); } } break;   // 近くの電気の梯子だけ鳴らす
+        case 'zap': if (Math.abs(e.a - run.p.x) < 14) { SND.se('zap'); if (!S.zapTip && !S.watch) { S.zapTip = 1; if (S.lv.f >= SH.ZAP2) toast(tr('zap'), tr('zap_tip2'), 2600); else toast(tr('zap'), tr('zap_tip1'), 2200); } } break;   // 近くの電気の梯子だけ鳴らす
         case 'quake': SND.se('quake'); break;
         case 'trap': SND.se('trap'); break;
-        case 'boss': SND.se('boss'); { const b = run.ents.find(x => x.k === 'boss'); toast((S.lv.q ? '関門の番人　' : '番人　') + (b ? b.name : ''), '倒せない。よけて、越えろ', 2200); } break;
+        case 'boss': SND.se('boss'); { const b = run.ents.find(x => x.k === 'boss'); toast((S.lv.q ? tr('gate_w') : tr('warden_sp')) + (b ? ln(b.name) : ''), tr('cant_beat'), 2200); } break;
       }
     }
     run.events.length = 0;
@@ -510,20 +517,20 @@
     const run = S.run, pl = run.place, name = S.name;
     SND.se('die'); view.shake = 0.8; view.burst(run.p.x + 0.4, run.p.y + 0.4, `hsl(${SH.hue(name)},70%,60%)`, 16);
     ME.dead++; saveMe(); S.deathsHere++; S.pending++;
-    let sub = (KIND[run.dead] || '') + 'で';
-    if (pl.vanish === 'cap') { sub = 'ここはもう屍が積めない。屍は消えた'; SND.se('vanish'); }
-    else if (pl.vanish === 'fall') { sub = '奈落に落ちた。屍は残らない'; SND.se('vanish'); }
-    else if (pl.vanish === 'poison') { sub = '毒の花で屍が溶けた'; SND.se('vanish'); }
-    else if (pl.vanish === 'zap') { sub = '電気の梯子でしびれた。屍は残らない'; SND.se('vanish'); }
+    let sub = KIND[run.dead] ? tr('by_kind', { k: tr('k_' + run.dead) }) : '';
+    if (pl.vanish === 'cap') { sub = tr('v_cap'); SND.se('vanish'); }
+    else if (pl.vanish === 'fall') { sub = tr('v_fall'); SND.se('vanish'); }
+    else if (pl.vanish === 'poison') { sub = tr('v_poison'); SND.se('vanish'); }
+    else if (pl.vanish === 'zap') { sub = tr('v_zap'); SND.se('vanish'); }
     else {
       SH.addCorpse(S.cor, S.lv, pl.x, pl.y, name); const c = S.cor.get(pl.y * S.lv.w + pl.x); c.t = NET.now() + 1; c.last = name;
       setTimeout(() => SND.se('pile'), 250);
       // となりに眠る屍
       let near = null, nd = 99;
       for (const [k, v] of S.cor) { if (v === c) continue; const x = k % S.lv.w, y = Math.floor(k / S.lv.w), d = Math.abs(x - pl.x) + Math.abs(y - pl.y); if (d < nd && d <= 3) { nd = d; near = v; } }
-      sub = near ? `となりには「${near.last}」が眠っている` : 'ここが、あとから来る者の足場になる';
+      sub = near ? tr('near_sleep', { n: anon(near.last) }) : tr('foothold');
     }
-    toast(`${name}は死んだンゴ`, sub, 1500);
+    toast(tr('died', { n: name }), sub, 1500);
     const mx = run.p.maxX;
     const fl = S.lv.f;
     const myKey = !pl.vanish ? pl.y * S.lv.w + pl.x : -1, myCor = S.cor;
@@ -546,17 +553,17 @@
     const mine = { r: S.rec.str(), c: S.startCor, k: ticks, n: S.name };
     S.myLast = Object.assign({ f, best: isBest }, mine);
     if (isBest) { const o = myRuns(); o[f] = mine; NET.store('shiin_myrun', o); }
-    $('cl-mnote').textContent = isBest ? '最速の走りとして、この端末に残ります' : '最速ではないので、この映像はタイトルに戻ると削除されます'; ME.best[f] = lv.goal; saveMe();
+    $('cl-mnote').textContent = isBest ? tr('kept_best') : tr('not_fast2'); ME.best[f] = lv.goal; saveMe();
     const deadN = Math.max((W.stat[f] && W.stat[f].d) || 0, S.cor.size ? [...S.cor.values()].reduce((a, c) => a + c.n, 0) : 0) + S.pending;
     const wasOpen = okFloor(f);
     const isFirst = S.latest && !wasOpen;
-    $('cl-big').innerHTML = `<b>${fmt(deadN)}</b>人の屍を超えて<br>第${f}層突破！`;
-    $('cl-sub').textContent = `${S.name}　${(ticks / 120).toFixed(1)}秒` + (firstHere ? '' : `（自己ベスト ${(ME.clears[f] / 120).toFixed(1)}秒）`);
+    $('cl-big').innerHTML = tr('cl_big', { n: fmt(deadN), f });
+    $('cl-sub').textContent = `${S.name}　${sec((ticks / 120).toFixed(1))}` + (firstHere ? '' : tr('pb', { s: sec((ME.clears[f] / 120).toFixed(1)) }));
     $('cl-first').style.display = 'none';   // 記録を送って、本当に一番乗りだったときに出す
     $('cl-xid').value = NET.store('shiin_xid') || '';
     $('cl-next').style.display = f < 100 ? '' : 'none';
-    $('cl-next').textContent = `第${Math.min(100, f + 1)}層へ`;
-    $('cl-msg').textContent = isFirst ? '記録を送っています…' : '';
+    $('cl-next').textContent = tr('to_next', { n: Math.min(100, f + 1) });
+    $('cl-msg').textContent = isFirst ? tr('sending') : '';
     if (f !== 100) modal('clearbox', 1);   // 第100層は、エンドロールのあとに出す
     S.clearInfo = { f, name: S.name, ticks, deadN, isFirst };
     // 記録を送る（はじめてなら層が開く）
@@ -565,8 +572,8 @@
       const r = await NET.clear(lv, S.name, '', S.rec.str(), S.startCor, ticks, !wasOpen);
       const id = r && r.id; S.clearInfo.id = id; S.clearInfo.opened = !!(r && r.opened);
       if (isFirst) {
-        if (r && r.opened) { $('cl-first').style.display = ''; $('cl-msg').textContent = f === 100 ? 'シインクラッド、完全制覇。' : `第${f + 1}層が、いま開いた。`; }
-        else $('cl-msg').textContent = id ? 'ひと足先に越えた人がいました。あなたの記録も残りました' : '';
+        if (r && r.opened) { $('cl-first').style.display = ''; $('cl-msg').textContent = f === 100 ? tr('all_clear') : tr('opened', { n: f + 1 }); }
+        else $('cl-msg').textContent = id ? tr('beaten') : '';
       }
       if (!wasOpen && id) {
         // 自分で越えたので、この端末では確かめずに開く（開いた印の時刻を読んで覚える）
@@ -584,7 +591,7 @@
       }
       W.stat[f] = Object.assign({}, W.stat[f], { f: ((W.stat[f] || {}).f || 0) + 1, m: lv.goal });
     } catch (e) {
-      $('cl-msg').textContent = '記録を送れませんでした（混みあっているか、電波が弱いです）。「刻む」を押すと、もう一度送ります';
+      $('cl-msg').textContent = tr('send_fail');
       const recStr = S.rec.str(), startCor = S.startCor, ci = S.clearInfo;
       ci.failed = true; ci.resend = () => NET.clear(lv, ci.name, '', recStr, startCor, ticks, !wasOpen);
       if (isFirst) $('cl-first').style.display = '';   // もう一度送るための「刻む」
@@ -601,9 +608,9 @@
       modal('namebox', 1); setTimeout(() => $('nm-name').focus(), 50);
       $('nm-ok').onclick = () => {
         const n = NET.cleanName($('nm-name').value.trim()), xr = $('nm-xid').value.trim().replace(/^@/, ''), x = xr ? NET.cleanX(xr) : '';
-        if (!n) { $('nm-err').textContent = '名前を入れてください'; return; }
-        if (NG.some(w => ngNorm(n).includes(ngNorm(w)))) { $('nm-err').textContent = 'その名前は使えません'; return; }
-        if (xr && !x) { $('nm-err').textContent = 'XのIDの形がちがいます（英数字と _ で15文字まで）'; return; }
+        if (!n) { $('nm-err').textContent = tr('nm_need'); return; }
+        if (NG.some(w => ngNorm(n).includes(ngNorm(w)))) { $('nm-err').textContent = tr('nm_bad'); return; }
+        if (xr && !x) { $('nm-err').textContent = tr('x_bad'); return; }
         if (x) NET.store('shiin_xid', x);
         modal('namebox', 0); res({ n, x });
       };
@@ -611,18 +618,18 @@
   }
   $('cl-xsave').onclick = async () => {
     const x = NET.cleanX($('cl-xid').value);
-    if (!x) { toast('IDの形がちがいます', '英数字と _ で15文字まで'); return; }
+    if (!x) { toast(tr('id_bad'), tr('id_rule')); return; }
     NET.store('shiin_xid', x);
     const ci = S.clearInfo;
     if (ci && !ci.id && ci.failed && ci.resend) {
-      toast('記録をもう一度送っています…');
-      try { const r = await ci.resend(); if (!r || !r.id) throw new Error('no id'); ci.id = r.id; ci.opened = !!r.opened; ci.failed = false; $('cl-msg').textContent = ci.opened ? (ci.f === 100 ? 'シインクラッド、完全制覇。' : `第${ci.f + 1}層が、いま開いた。`) : 'ひと足先に越えた人がいました。あなたの記録も残りました'; refresh(true); }
-      catch (e) { toast('送れませんでした', '混みあっています。少し待ってもう一度'); return; }
+      toast(tr('resending'));
+      try { const r = await ci.resend(); if (!r || !r.id) throw new Error('no id'); ci.id = r.id; ci.opened = !!r.opened; ci.failed = false; $('cl-msg').textContent = ci.opened ? (ci.f === 100 ? tr('all_clear') : tr('opened', { n: ci.f + 1 })) : tr('beaten'); refresh(true); }
+      catch (e) { toast(tr('send_ng'), tr('busy_retry')); return; }
     }
-    if (!ci || !ci.id) { toast('記録を送っている途中です', '少し待ってもう一度'); return; }
-    try { await NET.setXid(ci.f, ci.id, x, ci.opened); if (ME.ok3[ci.f] && ME.ok3[ci.f].id === ci.id) { ME.ok3[ci.f].x = x; saveMe(); } if (W.open[ci.f] && W.open[ci.f].id === ci.id) W.open[ci.f].x = x; $('cl-first').style.display = 'none'; toast('碑に刻みました', '@' + x); } catch (e) { toast('書きこめませんでした'); }
+    if (!ci || !ci.id) { toast(tr('still_sending'), tr('wait_retry')); return; }
+    try { await NET.setXid(ci.f, ci.id, x, ci.opened); if (ME.ok3[ci.f] && ME.ok3[ci.f].id === ci.id) { ME.ok3[ci.f].x = x; saveMe(); } if (W.open[ci.f] && W.open[ci.f].id === ci.id) W.open[ci.f].x = x; $('cl-first').style.display = 'none'; toast(tr('engraved'), '@' + x); } catch (e) { toast(tr('write_ng')); }
   };
-  $('cl-xskip').onclick = () => { $('cl-first').style.display = 'none'; toast('「無名」として刻まれます'); };
+  $('cl-xskip').onclick = () => { $('cl-first').style.display = 'none'; toast(tr('as_anon')); };
   $('cl-next').onclick = () => { modal('clearbox', 0); startFloor(Math.min(100, S.lv.f + 1)); };
   $('cl-again').onclick = () => { modal('clearbox', 0); SND.bgm(S.lv.theme); spawn(false); };
   $('cl-share').onclick = () => { S.shareMode = 'clear'; openShare(); };
@@ -642,7 +649,7 @@
   }
   async function autoStuck(manual) {
     if (!S.lv) return null;
-    if (manual) $('stuck-body').innerHTML = '<p>しらべています…</p>';
+    if (manual) $('stuck-body').innerHTML = '<p>' + tr('checking') + '</p>';
     const lv = S.lv, r = await stuckCheck(lv, S.cor);
     if (r.stuck && !manual && !S.reported && S.lv === lv) { S.reported = 1; NET.report(lv.f, r.maxX, true).catch(() => { }); }
     return r;
@@ -651,11 +658,11 @@
     S.paused = true; modal('stuck', 1); $('stuck-send').style.display = 'none';
     const r = await autoStuck(true);
     const pct = Math.floor((r.maxX / S.lv.goal) * 100);
-    $('stuck-body').innerHTML = r.goal ? '<p>しらべたところ、<b>まだゴールまで行ける道</b>があります。<br>あきらめずに挑んでください。</p>'
-      : r.stuck ? `<p>しらべたところ、<b>詰んでいるかもしれません</b>（${pct}%の所で止まる）。<br>管理人に知らせますか？確かめて、この層の屍を消すことがあります。</p>`
-        : `<p>まだ屍を積める場所が <b>${r.cand}</b> か所あります（${pct}%の所まで行けます）。<br>みんなで死ねば、道はできるかもしれません。<br>それでも詰んでいると思ったら、知らせてください。</p>`;
+    $('stuck-body').innerHTML = r.goal ? '<p>' + tr('ok_path') + '</p>'
+      : r.stuck ? '<p>' + tr('is_stuck', { p: pct }) + '</p>'
+        : '<p>' + tr('cand', { c: r.cand, p: pct }) + '</p>';
     $('stuck-send').style.display = r.goal ? 'none' : '';
-    $('stuck-send').onclick = async () => { $('stuck-send').style.display = 'none'; try { await NET.report(S.lv.f, r.maxX, r.stuck); $('stuck-body').innerHTML += '<p>知らせました。ありがとうございます。</p>'; } catch (e) { $('stuck-body').innerHTML += '<p>送れませんでした。</p>'; } };
+    $('stuck-send').onclick = async () => { $('stuck-send').style.display = 'none'; try { await NET.report(S.lv.f, r.maxX, r.stuck); $('stuck-body').innerHTML += '<p>' + tr('reported') + '</p>'; } catch (e) { $('stuck-body').innerHTML += '<p>' + tr('send_ng2') + '</p>'; } };
   };
   $('stuck-close').onclick = () => { modal('stuck', 0); S.paused = false; };
   // ---------- 屍をタップ ----------
@@ -666,16 +673,16 @@
     const pop = $('pop');
     if (!c) { S.pick = null; pop.style.display = 'none'; return; }
     S.pick = [x, y]; SND.se('tap');
-    pop.innerHTML = `<b>${esc(c.last)}</b> ほか<br>ここで <b>${fmt(c.n)}</b> 人が死んだ`;
-    if (c.n === 1) pop.innerHTML = `<b>${esc(c.last)}</b><br>ここで死んだ`;
+    pop.innerHTML = tr('pop_many', { l: esc(anon(c.last)), n: fmt(c.n) });
+    if (c.n === 1) pop.innerHTML = tr('pop_one', { l: esc(anon(c.last)) });
     pop.style.left = ev.clientX + 'px'; pop.style.top = ev.clientY + 'px'; pop.style.display = 'block';
     clearTimeout(pop._t); pop._t = setTimeout(() => { pop.style.display = 'none'; S.pick = null; }, 2400);
   });
   // ---------- 見るモード ----------
   $('w-replay').onclick = () => {
     if (S.first) { startReplay(S.first); S.follow = true; }
-    else if (S.firstLoading) { S.wantReplay = true; toast('記録を確かめています', '確かめ終わったら、自動で流れます', 2200); }
-    else toast('はじめて越えた記録を確かめられませんでした');
+    else if (S.firstLoading) { S.wantReplay = true; toast(tr('verifying'), tr('auto_play'), 2200); }
+    else toast(tr('verify_ng'));
   };
   $('w-free').onclick = () => { S.follow = false; };
   // 見るモードはドラッグで動かせる
@@ -721,18 +728,18 @@
   // =============================================
   async function openGrave(tab) {
     modal('grave', 1); S.paused = true;
-    const body = $('gr-body'); body.innerHTML = '<p>読みこみ中…</p>';
+    const body = $('gr-body'); body.innerHTML = '<p>' + tr('loading') + '</p>';
     for (const b of document.querySelectorAll('#grave .tabs button')) b.classList.toggle('on', b.dataset.t === tab);
     try {
       if (tab === 'dead') {
         const list = await NET.grave(150);
-        body.innerHTML = `<p class="note">ここに眠る ${fmt(totalDead())} の屍のうち、新しい ${list.length} 人。</p><ol class="names">` + list.map(g => `<li><b>${esc(g.n)}</b><small>第${g.f}層・${ago(g.t)}</small></li>`).join('') + '</ol>';
+        body.innerHTML = `<p class="note">${tr('grave_note', { a: fmt(totalDead()), b: list.length })}</p><ol class="names">` + list.map(g => `<li><b>${esc(g.n)}</b><small>${tr('fl', { n: g.f })}${tr('dot')}${ago(g.t)}</small></li>`).join('') + '</ol>';
       } else {
         await refresh(); const idx = await getIndex();
         const rows = Object.keys(W.open).map(Number).filter(f => okFloor(f)).map(f => ({ f, o: opener(f) })).sort((a, b) => a.f - b.f);
-        body.innerHTML = `<p class="note">各層をはじめて越えた者。XのIDは本人の申告で、本当にその人かは確かめていません。</p><ol class="names">` + (rows.length ? rows.map(({ f, o }) => `<li><b>第${f}層</b> ${esc(idx[f - 1].n)}<br>${esc(o.n)}　<span class="x">${o.x ? '@' + esc(o.x) : '無名'}</span><small>${new Date(o.t).toLocaleDateString('ja-JP')}</small></li>`).join('') : '<li>まだだれもいない</li>') + '</ol>';
+        body.innerHTML = `<p class="note">${tr('hero_note')}</p><ol class="names">` + (rows.length ? rows.map(({ f, o }) => `<li><b>${tr('fl', { n: f })}</b> ${esc(ln(idx[f - 1].n))}<br>${esc(anon(o.n))}　<span class="x">${o.x ? '@' + esc(o.x) : tr('anonymous')}</span><small>${new Date(o.t).toLocaleDateString(LOC())}</small></li>`).join('') : '<li>' + tr('nobody') + '</li>') + '</ol>';
       }
-    } catch (e) { body.innerHTML = '<p>読みこめませんでした</p>'; }
+    } catch (e) { body.innerHTML = '<p>' + tr('load_fail') + '</p>'; }
   }
   for (const b of document.querySelectorAll('#grave .tabs button')) b.onclick = () => openGrave(b.dataset.t);
   $('gr-close').onclick = () => { modal('grave', 0); S.paused = false; };
@@ -742,19 +749,19 @@
   // =============================================
   function openHow() { modal('how', 1); S.paused = true; }
   $('how-close').onclick = () => { modal('how', 0); S.paused = false; };
-  function paintSnd() { $('b-snd').textContent = SND.on ? '♪ 音あり' : '♪ 音なし'; $('g-snd').textContent = SND.on ? '♪' : '×'; }
+  function paintSnd() { $('b-snd').textContent = SND.on ? tr('snd_on') : tr('snd_off'); $('g-snd').textContent = SND.on ? '♪' : '×'; }
   $('b-snd').onclick = () => { SND.unlock(); SND.setOn(!SND.on); paintSnd(); };
   $('g-snd').onclick = () => { SND.unlock(); SND.setOn(!SND.on); paintSnd(); };
   // =============================================
   //  投稿・画像
   // =============================================
-  const TAGS = '#シインクラッド #gamedev #ゲーム制作';
+  const TAGS = () => tr('tags');
   const progPct = () => S.lv ? Math.min(99, Math.floor((S.best / S.lv.goal) * 100)) : 0;
   function shareText() {
     const ci = S.clearInfo;
-    if (S.shareMode === 'clear' && ci) return `${fmt(ci.deadN)}人の屍を超えて、第${ci.f}層突破！\n名前は「${ci.name}」${(ci.ticks / 120).toFixed(1)}秒\n誰か続いてくれ！\n\n${TAGS}\n\n${URL_GAME}`;
-    if (S.shareMode === 'prog' && S.lv) return `シインクラッド第${S.lv.f}層の${progPct()}%地点に到達！\n${S.deathsHere ? S.deathsHere + '回死んだ。' : ''}誰か助けてくれ！\n\n${TAGS}\n\n${URL_GAME}`;
-    return `シインクラッド　いま第${W.latest}層。みんなの屍は${fmt(totalDead())}人。\n誰か助けてくれ！\n\n${TAGS}\n\n${URL_GAME}`;
+    if (S.shareMode === 'clear' && ci) return `${tr('sh_clear', { d: fmt(ci.deadN), f: ci.f, n: ci.name, s: sec((ci.ticks / 120).toFixed(1)) })}\n\n${TAGS()}\n\n${URL_GAME}`;
+    if (S.shareMode === 'prog' && S.lv) return `${tr('sh_prog', { f: S.lv.f, p: progPct(), dd: S.deathsHere ? tr('sh_died', { n: S.deathsHere }) : '' })}\n\n${TAGS()}\n\n${URL_GAME}`;
+    return `${tr('sh_title', { f: W.latest, d: fmt(totalDead()) })}\n\n${TAGS()}\n\n${URL_GAME}`;
   }
   function drawShare(cv) {
     const g = cv.getContext('2d'), Wd = 1200, Hd = 630; cv.width = Wd; cv.height = Hd;
@@ -765,17 +772,17 @@
     v2.draw({ run: r, cor: S.cor, name: S.name, showPlayer: true });
     g.drawImage(off, 0, 0);
     g.fillStyle = 'rgba(10,8,14,.62)'; g.fillRect(0, 0, Wd, Hd);
-    g.textAlign = 'center'; g.fillStyle = '#ffd25a'; g.font = '64px DotGothic16, monospace';
+    const F = FF(); g.textAlign = 'center'; g.fillStyle = '#ffd25a'; g.font = '64px ' + F;
     const ci = S.clearInfo;
     if (ci) {
-      g.fillText(`${fmt(ci.deadN)}人の屍を超えて`, Wd / 2, 230); g.font = '86px DotGothic16, monospace'; g.fillStyle = '#fff'; g.fillText(`第${ci.f}層突破！`, Wd / 2, 340);
-      g.font = '34px DotGothic16, monospace'; g.fillStyle = '#cfc6b8'; g.fillText(`${ci.name}　${(ci.ticks / 120).toFixed(1)}秒　${S.lv.name}`, Wd / 2, 410);
+      g.fillText(tr('img_over', { d: fmt(ci.deadN) }), Wd / 2, 230); g.font = '86px ' + F; g.fillStyle = '#fff'; g.fillText(tr('img_clear', { f: ci.f }), Wd / 2, 340);
+      g.font = '34px ' + F; g.fillStyle = '#cfc6b8'; g.fillText(`${ci.name}　${sec((ci.ticks / 120).toFixed(1))}　${ln(S.lv.name)}`, Wd / 2, 410);
     } else if (S.shareMode === 'prog' && S.lv) {
-      g.fillText(`第${S.lv.f}層　${S.lv.name}`, Wd / 2, 200); g.font = '96px DotGothic16, monospace'; g.fillStyle = '#fff'; g.fillText(`${progPct()}%地点に到達！`, Wd / 2, 320);
-      g.font = '46px DotGothic16, monospace'; g.fillStyle = '#ff9a7a'; g.fillText('誰か助けてくれ！', Wd / 2, 410);
-      if (S.deathsHere) { g.font = '30px DotGothic16, monospace'; g.fillStyle = '#cfc6b8'; g.fillText(`ここまでに${S.deathsHere}回死んだ`, Wd / 2, 465); }
-    } else { g.fillText('シインクラッド', Wd / 2, 260); g.font = '44px DotGothic16, monospace'; g.fillStyle = '#fff'; g.fillText(`いま第${W.latest}層。みんなの屍は${fmt(totalDead())}人。`, Wd / 2, 350); g.fillStyle = '#ff9a7a'; g.fillText('誰か助けてくれ！', Wd / 2, 420); }
-    g.font = '30px DotGothic16, monospace'; g.fillStyle = '#9a90a8'; g.fillText('シインクラッド　#シインクラッド', Wd / 2, 560);
+      g.fillText(tr('fl', { n: S.lv.f }) + tr('sp') + ln(S.lv.name), Wd / 2, 200); g.font = '96px ' + F; g.fillStyle = '#fff'; g.fillText(tr('img_reach', { p: progPct() }), Wd / 2, 320);
+      g.font = '46px ' + F; g.fillStyle = '#ff9a7a'; g.fillText(tr('help'), Wd / 2, 410);
+      if (S.deathsHere) { g.font = '30px ' + F; g.fillStyle = '#cfc6b8'; g.fillText(tr('img_died', { n: S.deathsHere }), Wd / 2, 465); }
+    } else { g.fillText(tr('logo'), Wd / 2, 260); g.font = '44px ' + F; g.fillStyle = '#fff'; g.fillText(tr('img_now', { f: W.latest, d: fmt(totalDead()) }), Wd / 2, 350); g.fillStyle = '#ff9a7a'; g.fillText(tr('help'), Wd / 2, 420); }
+    g.font = '30px ' + F; g.fillStyle = '#9a90a8'; g.fillText(tr('img_foot'), Wd / 2, 560);
   }
   function openShare() {
     const cv = $('sh-img'); drawShare(cv);
@@ -801,6 +808,7 @@
   $('go-how').onclick = () => openHow();
   $('g-how').onclick = () => openHow();
   // はじめる
+  document.addEventListener('langchange', () => { paintSnd(); if (INDEX) title.paint(); });
   paintSnd();
   getIndex().then(() => {
     title.paint();

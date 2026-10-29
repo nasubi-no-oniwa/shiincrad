@@ -26,7 +26,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=40">
+<link rel="stylesheet" href="css/style.css?v=41">
 </head>
 <body>
 <canvas id="cv"></canvas>
@@ -34,37 +34,38 @@
 <!-- ========== タイトル ========== -->
 <section class="screen on" id="title">
   <div class="tbg"></div>
-  <div class="ticker" id="ticker"><span>読みこみ中…</span></div>
+  <div class="ticker" id="ticker"><span data-i="loading">読みこみ中…</span></div>
   <div class="tmain">
-    <h1>シインクラッド</h1>
-    <p class="catch">死ぬと、そこが足場になる。</p>
+    <h1 data-i="logo">シインクラッド</h1>
+    <p class="catch" data-i="catch">死ぬと、そこが足場になる。</p>
     <div class="now">
-      <div class="lab">いま、みんなで挑んでいる層</div>
+      <div class="lab" data-i="now_lab">いま、みんなで挑んでいる層</div>
       <div class="lv" id="t-latest">第<b>1</b>層</div>
-      <div class="nums"><span>この層の屍 <b id="t-ldead">0</b></span><span>道ができた <b id="t-road">0%</b></span></div>
+      <div class="nums"><span><span data-i="t_ldead">この層の屍</span> <b id="t-ldead">0</b></span><span><span data-i="road">道ができた</span> <b id="t-road">0%</b></span></div>
     </div>
-    <button class="live" id="t-live" style="display:none">🔴 配信先リンク</button><br>
+    <button class="live" id="t-live" style="display:none" data-i="live_link">🔴 配信先リンク</button><br>
     <button class="go" id="go-latest">第1層に挑む</button>
     <div class="row">
-      <button class="sub" id="go-select">層をえらぶ</button>
-      <button class="sub" id="go-grave">屍の碑</button>
-      <button class="sub" id="go-hero">到達者の碑</button>
+      <button class="sub" id="go-select" data-i="go_select">層をえらぶ</button>
+      <button class="sub" id="go-grave" data-i="grave_btn">屍の碑</button>
+      <button class="sub" id="go-hero" data-i="hero_btn">到達者の碑</button>
     </div>
     <div class="row">
-      <button class="sub" id="go-how">あそびかた</button>
-      <button class="sub" id="t-end" style="display:none">エンドロール</button>
+      <button class="sub" id="go-how" data-i="howto">あそびかた</button>
+      <button class="sub" id="t-end" style="display:none" data-i="credits">エンドロール</button>
       <button class="sub" id="b-snd">♪ 音あり</button>
-      <button class="sub" id="b-share">投稿する</button>
+      <button class="sub" id="b-share" data-i="share_btn">投稿する</button>
     </div>
-    <p class="total">これまでの屍　<b id="t-total">0</b></p>
-    <a class="home" href="https://nasubi-no-oniwa.github.io/">なすびのお庭</a>
+    <p class="total"><span data-i="total">これまでの屍</span>　<b id="t-total">0</b></p>
+    <a class="home" href="https://nasubi-no-oniwa.github.io/" data-i="home2">なすびのお庭</a>
+    <div class="langs" role="group" aria-label="Language"><button type="button" data-lang="ja">日本語</button><button type="button" data-lang="en">English</button><button type="button" data-lang="zh">繁中</button><button type="button" data-lang="ko">한국어</button></div>
   </div>
 </section>
 
 <!-- ========== 層をえらぶ ========== -->
 <section class="screen" id="select">
-  <header><button class="sub" id="sel-back">◀ もどる</button><h2>層をえらぶ</h2></header>
-  <p class="note">開いた層だけ入れます。前の層は「練習」、越えられた層は「見る」で道をながめられます。</p>
+  <header><button class="sub" id="sel-back" data-i="sel_back">◀ もどる</button><h2 data-i="sel_title">層をえらぶ</h2></header>
+  <p class="note" data-i="sel_note">開いた層だけ入れます。前の層は「練習」、越えられた層は「見る」で道をながめられます。</p>
   <div class="sel-list" id="sel-list"></div>
 </section>
 
@@ -72,22 +73,22 @@
 <section class="screen" id="game">
   <div class="hud">
     <button class="hb" id="g-back">◀</button>
-    <span class="hfl">第<b id="h-floor">1</b>層 <small id="h-fname"></small> <em id="h-mode"></em></span>
+    <span class="hfl"><span data-i="h_fl_pre">第</span><b id="h-floor">1</b><span data-i="h_fl_post">層</span> <small id="h-fname"></small> <em id="h-mode"></em></span>
     <span class="sp"></span>
-    <span>屍 <b id="h-dead">0</b></span>
+    <span><span data-i="h_dead">屍</span> <b id="h-dead">0</b></span>
     <span id="h-time">0.0秒</span>
-    <button class="hb" id="g-live" style="display:none" aria-label="配信先リンク">🔴</button>
+    <button class="hb" id="g-live" style="display:none" aria-label="配信先リンク" data-ia="live_aria">🔴</button>
     <button class="hb" id="g-how">？</button>
-    <button class="hb wide" id="g-share">投稿</button>
+    <button class="hb wide" id="g-share" data-i="share_s">投稿</button>
     <button class="hb" id="g-snd">♪</button>
   </div>
   <div class="prog"><i id="h-prog"></i><u id="h-best"></u></div>
   <div class="name" id="h-name"></div>
-  <button class="stuck" id="b-stuck">詰んだ？</button>
-  <button class="stone" id="stone" style="display:none">屍の碑</button>
-  <div class="watchbar"><button class="sub" id="w-replay">はじめて越えた人の走り</button><button class="sub" id="w-mine" style="display:none">自分の走り</button><button class="sub" id="w-free">自由に見る</button><small>← → か、ドラッグで動かせます</small></div>
-  <div class="btns"><div id="zL"><button class="b" id="bl" aria-label="左へ">◀</button><button class="b" id="br" aria-label="右へ">▶</button></div><div id="zR"><button class="b j" id="bj" aria-label="ジャンプ">▲<small>ジャンプ</small></button></div></div>
-  <div class="loading" id="loading">屍を数えています…</div>
+  <button class="stuck" id="b-stuck" data-i="stuck_btn">詰んだ？</button>
+  <button class="stone" id="stone" style="display:none" data-i="grave_btn">屍の碑</button>
+  <div class="watchbar"><button class="sub" id="w-replay" data-i="w_replay">はじめて越えた人の走り</button><button class="sub" id="w-mine" style="display:none" data-i="w_mine">自分の走り</button><button class="sub" id="w-free" data-i="w_free">自由に見る</button><small data-i="w_hint">← → か、ドラッグで動かせます</small></div>
+  <div class="btns"><div id="zL"><button class="b" id="bl" aria-label="左へ" data-ia="left_a">◀</button><button class="b" id="br" aria-label="右へ" data-ia="right_a">▶</button></div><div id="zR"><button class="b j" id="bj" aria-label="ジャンプ" data-ia="jump">▲<small data-i="jump">ジャンプ</small></button></div></div>
+  <div class="loading" id="loading" data-i="counting">屍を数えています…</div>
 </section>
 
 <div class="pop" id="pop"></div>
@@ -96,10 +97,10 @@
 <!-- ========== 層のメニュー ========== -->
 <div class="modal" id="floormenu"><div class="card">
   <h3 id="fm-title"></h3><div id="fm-body"></div>
-  <button class="go" id="fm-play">挑む</button><br>
-  <button class="sub" id="fm-watch">見る（スペクター）</button>
-  <button class="sub" id="fm-mine" style="display:none">自分の最速の走りを見る</button>
-  <button class="sub" id="fm-close">とじる</button>
+  <button class="go" id="fm-play" data-i="fm_play0">挑む</button><br>
+  <button class="sub" id="fm-watch" data-i="fm_watch">見る（スペクター）</button>
+  <button class="sub" id="fm-mine" style="display:none" data-i="fm_mine">自分の最速の走りを見る</button>
+  <button class="sub" id="fm-close" data-i="close">とじる</button>
 </div></div>
 
 <!-- ========== 越えた ========== -->
@@ -107,98 +108,99 @@
   <div class="big" id="cl-big"></div>
   <div class="csub" id="cl-sub"></div>
   <p class="cmsg" id="cl-msg"></p>
-  <button class="sub" id="cl-mine">自分の走りを見なおす</button>
+  <button class="sub" id="cl-mine" data-i="cl_mine">自分の走りを見なおす</button>
   <p class="tiny" id="cl-mnote"></p>
   <div id="cl-first" class="first">
-    <p>あなたが<b>はじめて越えた人</b>です。<br>到達者の碑に、XのIDを残しますか？（なくてもよい）</p>
-    <div class="xin"><span>@</span><input id="cl-xid" maxlength="16" placeholder="IDを入れる" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
-    <button class="sub" id="cl-xsave">刻む</button><button class="sub" id="cl-xskip">残さない（無名）</button>
-    <p class="tiny">※IDが本人のものかは確かめられません。</p>
+    <p data-ih="first_note">あなたが<b>はじめて越えた人</b>です。<br>到達者の碑に、XのIDを残しますか？（なくてもよい）</p>
+    <div class="xin"><span>@</span><input id="cl-xid" maxlength="16" placeholder="IDを入れる" data-ip="id_ph" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    <button class="sub" id="cl-xsave" data-i="engrave">刻む</button><button class="sub" id="cl-xskip" data-i="skip_anon">残さない（無名）</button>
+    <p class="tiny" data-i="id_warn">※IDが本人のものかは確かめられません。</p>
   </div>
   <button class="go" id="cl-next">次の層へ</button><br>
-  <button class="sub" id="cl-share">投稿する</button>
-  <button class="sub" id="cl-again">もう一度</button>
-  <button class="sub" id="cl-title">タイトルへ</button>
+  <button class="sub" id="cl-share" data-i="share_btn">投稿する</button>
+  <button class="sub" id="cl-again" data-i="retry">もう一度</button>
+  <button class="sub" id="cl-title" data-i="to_title">タイトルへ</button>
 </div></div>
 
 <!-- ========== 第100層：エンドロールに載せる名前 ========== -->
 <div class="modal" id="namebox"><div class="card clear">
-  <div class="big">全100層 制覇</div>
-  <p class="cmsg">エンドロールに載せる名前<br><small>（あなたの画面にだけ出ます）</small></p>
-  <input id="nm-name" class="nmin" maxlength="12" autocomplete="off" spellcheck="false" aria-label="エンドロールに載せる名前">
-  <div class="xin"><span>@</span><input id="nm-xid" maxlength="16" placeholder="XのID（なくてもよい）" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+  <div class="big" data-i="all_done_t">全100層 制覇</div>
+  <p class="cmsg" data-ih="end_name">エンドロールに載せる名前<br><small>（あなたの画面にだけ出ます）</small></p>
+  <input id="nm-name" class="nmin" maxlength="12" autocomplete="off" spellcheck="false" aria-label="エンドロールに載せる名前" data-ia="end_name_a">
+  <div class="xin"><span>@</span><input id="nm-xid" maxlength="16" placeholder="XのID（なくてもよい）" data-ip="x_ph" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
   <p class="tiny" id="nm-err"></p>
-  <button class="go" id="nm-ok">エンドロールへ</button>
+  <button class="go" id="nm-ok" data-i="to_end">エンドロールへ</button>
 </div></div>
 
 <!-- ========== 碑 ========== -->
 <div class="modal" id="grave"><div class="card wide">
-  <div class="tabs"><button data-t="dead">屍の碑</button><button data-t="hero">到達者の碑</button></div>
+  <div class="tabs"><button data-t="dead" data-i="grave_btn">屍の碑</button><button data-t="hero" data-i="hero_btn">到達者の碑</button></div>
   <div class="gbody" id="gr-body"></div>
-  <button class="sub" id="gr-close">とじる</button>
+  <button class="sub" id="gr-close" data-i="close">とじる</button>
 </div></div>
 
 <!-- ========== エンドロール ========== -->
 <div class="ending" id="ending">
   <canvas id="end-cv"></canvas>
-  <canvas id="end-rp" aria-label="最初に頂を越えた人の動き"></canvas>
+  <canvas id="end-rp" aria-label="最初に頂を越えた人の動き" data-ia="end_rp_a"></canvas>
   <div class="end-cap" id="end-cap"></div>
   <div class="end-roll" id="end-roll"></div>
   <div class="end-card" id="end-card"></div>
   <div class="end-ty" id="end-ty">Thank you for playing</div>
-  <button class="sub end-skip" id="end-skip">とばす</button>
+  <button class="sub end-skip" id="end-skip" data-i="skip">とばす</button>
 </div>
 
 <!-- ========== 配信中 ========== -->
 <div class="modal" id="livebox"><div class="card">
-  <h3>🔴 配信中</h3>
+  <h3 data-i="live_h">🔴 配信中</h3>
   <div id="live-list"></div>
-  <p class="tiny">タップすると、配信のページが開きます。</p>
-  <button class="sub" id="live-close">とじる</button>
+  <p class="tiny" data-i="live_tap">タップすると、配信のページが開きます。</p>
+  <button class="sub" id="live-close" data-i="close">とじる</button>
 </div></div>
 
 <!-- ========== 詰み ========== -->
 <div class="modal" id="stuck"><div class="card">
-  <h3>詰んだ？</h3>
+  <h3 data-i="stuck_btn">詰んだ？</h3>
   <div id="stuck-body"></div>
-  <button class="go" id="stuck-send">管理人に知らせる</button><br>
-  <button class="sub" id="stuck-close">とじる</button>
+  <button class="go" id="stuck-send" data-i="stuck_send">管理人に知らせる</button><br>
+  <button class="sub" id="stuck-close" data-i="close">とじる</button>
 </div></div>
 
 <!-- ========== 投稿 ========== -->
 <div class="modal" id="share"><div class="card wide">
   <canvas id="sh-img" class="shimg"></canvas>
   <pre class="shtext" id="sh-text"></pre>
-  <p class="tiny">画像もつけたいときは、先に「画像を保存」を押してから「Xに投稿」を押し、投稿画面で保存した画像をつけてください。</p>
-  <button class="sub" id="sh-save">① 画像を保存</button><br>
-  <button class="go" id="sh-post">② Xに投稿</button><br>
-  <button class="sub" id="sh-close">とじる</button>
+  <p class="tiny" data-i="sh_tip">画像もつけたいときは、先に「画像を保存」を押してから「Xに投稿」を押し、投稿画面で保存した画像をつけてください。</p>
+  <button class="sub" id="sh-save" data-i="sh_save">① 画像を保存</button><br>
+  <button class="go" id="sh-post" data-i="sh_post">② Xに投稿</button><br>
+  <button class="sub" id="sh-close" data-i="close">とじる</button>
 </div></div>
 
 <!-- ========== あそびかた ========== -->
 <div class="modal" id="how"><div class="card wide how">
-  <h3>あそびかた</h3>
-  <p>あなたは名もなきキューブ。挑むたびに<b>ちがう名前</b>になる。チェックポイントはない。</p>
-  <p>死ぬと、その場所に<b>屍</b>が残って<b>足場</b>になる。穴に落ちれば底に積もり、トゲの上ならトゲをふさぐ。水には浮き、流砂には沈み、毒の花では溶ける。</p>
-  <p>屍は<b>全員で共有</b>。あなたの屍はすぐに、ほかの人の屍は入りなおすと現れる。</p>
-  <p>屍の列には<b>積める高さの上限</b>がある。こえた屍は消える（赤い印が上限のしるし）。</p>
-  <p><b>吊り天井</b>の下で死ぬと、屍がはさまる。下の列が屍で埋まると、天井は止まって動かなくなる（第21層から）。第25層からは、止まった天井に<b>はしご</b>がかかる（ジャンプを押し続けると登れる）。</p>
-  <p>攻撃はできない。<b>よけて進め</b>。魔物は低い屍なら越えてくるが、<b>高い屍の壁は越えられない</b>。</p>
-  <p>5層ごとに<b>番人</b>がいる。倒せない。赤く光った所に何かが来る。</p>
-  <p>だれかが越えると、すぐに<b>次の層が開く</b>。みんなで最新の層に挑もう。全100層。</p>
-  <p>どうしても進めない（詰んだ）と思ったら<b>「詰んだ？」</b>ボタン。</p>
-  <p class="k">操作：← → で移動、↑ / スペース でジャンプ（長く押すと高くとぶ）<br>スマホ：画面下のボタン　／　屍をタップすると名前</p>
-  <button class="go" id="how-close">わかった</button>
+  <h3 data-i="howto">あそびかた</h3>
+  <p data-ih="how1">あなたは名もなきキューブ。挑むたびに<b>ちがう名前</b>になる。チェックポイントはない。</p>
+  <p data-ih="how2">死ぬと、その場所に<b>屍</b>が残って<b>足場</b>になる。穴に落ちれば底に積もり、トゲの上ならトゲをふさぐ。水には浮き、流砂には沈み、毒の花では溶ける。</p>
+  <p data-ih="how3">屍は<b>全員で共有</b>。あなたの屍はすぐに、ほかの人の屍は入りなおすと現れる。</p>
+  <p data-ih="how4">屍の列には<b>積める高さの上限</b>がある。こえた屍は消える（赤い印が上限のしるし）。</p>
+  <p data-ih="how5"><b>吊り天井</b>の下で死ぬと、屍がはさまる。下の列が屍で埋まると、天井は止まって動かなくなる（第21層から）。第25層からは、止まった天井に<b>はしご</b>がかかる（ジャンプを押し続けると登れる）。</p>
+  <p data-ih="how6">攻撃はできない。<b>よけて進め</b>。魔物は低い屍なら越えてくるが、<b>高い屍の壁は越えられない</b>。</p>
+  <p data-ih="how7">5層ごとに<b>番人</b>がいる。倒せない。赤く光った所に何かが来る。</p>
+  <p data-ih="how8">だれかが越えると、すぐに<b>次の層が開く</b>。みんなで最新の層に挑もう。全100層。</p>
+  <p data-ih="how9">どうしても進めない（詰んだ）と思ったら<b>「詰んだ？」</b>ボタン。</p>
+  <p class="k" data-ih="how_k">操作：← → で移動、↑ / スペース でジャンプ（長く押すと高くとぶ）<br>スマホ：画面下のボタン　／　屍をタップすると名前</p>
+  <button class="go" id="how-close" data-i="got_it">わかった</button>
 </div></div>
 
-<script src="js/firebase-config.js?v=40"></script>
-<script src="js/engine.js?v=40"></script>
-<script src="js/bosses.js?v=40"></script>
-<script src="js/reach.js?v=40"></script>
-<script src="js/render.js?v=40"></script>
-<script src="js/sound.js?v=40"></script>
-<script src="js/net.js?v=40"></script>
-<script src="js/main.js?v=40"></script>
+<script src="js/i18n.js?v=41"></script>
+<script src="js/firebase-config.js?v=41"></script>
+<script src="js/engine.js?v=41"></script>
+<script src="js/bosses.js?v=41"></script>
+<script src="js/reach.js?v=41"></script>
+<script src="js/render.js?v=41"></script>
+<script src="js/sound.js?v=41"></script>
+<script src="js/net.js?v=41"></script>
+<script src="js/main.js?v=41"></script>
 <script>
 // スマホで続けてタップしたときに、画面が拡大されないようにする（iPhoneは「拡大しない」の設定を無視するため）
 (function () {
