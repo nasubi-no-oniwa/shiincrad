@@ -4,6 +4,13 @@
 //   挑む：毎回ちがう名前。死ぬとその場所に屍。すぐ次の名前で挑みなおし
 //   越えた：「○人の屍を超えて、第○層突破！」。はじめて越えた人はXのIDを残せる
 // =============================================
+
+// Xの投稿で引用するツイート（なすびのお庭の管理ページ quote/ で日本語・英語を貼りかえられる）
+var NQ=window.__nq||(window.__nq={q:{}});if(!NQ.f){NQ.f=1;fetch('https://ft-red-default-rtdb.asia-southeast1.firebasedatabase.app/xquote/g/shiincrad.json').then(r=>r.json()).then(d=>{if(d&&typeof d==='object')NQ.q=d;}).catch(()=>{});}
+function quoteURL(){let l='';try{if(typeof lang==='string')l=lang;}catch(e){}if(!l)l=document.documentElement.lang||'ja';const u=(l.slice(0,2)==='ja'?NQ.q.ja:NQ.q.en)||'';return /^https:\/\/x\.com\/[A-Za-z0-9_]{1,15}\/status\/\d{5,25}$/.test(u)?u:'';}
+function xIntent(text,url){const q=quoteURL();return 'https://x.com/intent/post?text='+encodeURIComponent(q?text+'\n'+url:text)+'&url='+encodeURIComponent(q||url);}
+function xIntentT(text){const q=quoteURL();return 'https://x.com/intent/post?text='+encodeURIComponent(text)+(q?'&url='+encodeURIComponent(q):'');}
+function nqS(o){const q=quoteURL();if(!q||!o)return o;o=Object.assign({},o);o.text=(o.text||'')+(o.url?'\n'+o.url:'')+'\n'+q;delete o.url;return o;}
 (function (G) {
   // ことば（T はタイルの名前で使っているので tr）
   const tr = (k, v) => G.I18N.t(k, v);
@@ -789,7 +796,7 @@
     $('sh-text').textContent = shareText();
     modal('share', 1);
   }
-  $('sh-post').onclick = () => { open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText()), '_blank'); };
+  $('sh-post').onclick = () => { open(xIntentT(shareText()), '_blank'); };
   $('sh-save').onclick = () => { const a = document.createElement('a'); a.download = 'shiincrad.png'; a.href = $('sh-img').toDataURL('image/png'); a.click(); };
   $('sh-close').onclick = () => { modal('share', 0); if (S.shareMode === 'prog') S.paused = false; };
   $('g-share').onclick = () => { if (!S.lv) return; S.paused = true; S.shareMode = 'prog'; openShare(); };
